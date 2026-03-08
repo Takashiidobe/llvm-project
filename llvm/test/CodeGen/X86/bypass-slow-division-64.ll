@@ -383,3 +383,24 @@ define void @PR43514(i32 %x, i32 %y) {
   %s = srem i64 %z1, %z2
   ret void
 }
+
+declare void @llvm.assume(i1 noundef)
+
+define i32 @udiv_i64_i32_assume_dividend_gt_u32_max(i64 %n, i32 %d) {
+; FAST-DIVQ-LABEL: udiv_i64_i32_assume_dividend_gt_u32_max:
+; FAST-DIVQ:       # %bb.0:
+; FAST-DIVQ-NOT:    divl
+; FAST-DIVQ:        divq
+;
+; SLOW-DIVQ-LABEL: udiv_i64_i32_assume_dividend_gt_u32_max:
+; SLOW-DIVQ:       # %bb.0:
+; SLOW-DIVQ-NOT:    je
+; SLOW-DIVQ-NOT:    divl
+; SLOW-DIVQ:        divq
+  %cmp = icmp ugt i64 %n, 4294967295
+  call void @llvm.assume(i1 %cmp)
+  %d.ext = zext i32 %d to i64
+  %q = udiv i64 %n, %d.ext
+  %tr = trunc i64 %q to i32
+  ret i32 %tr
+}

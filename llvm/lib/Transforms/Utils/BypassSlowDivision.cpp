@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -76,6 +77,7 @@ class FastDivInsertionTask {
   Instruction *SlowDivOrRem = nullptr;
   IntegerType *BypassType = nullptr;
   BasicBlock *MainBB = nullptr;
+  AssumptionCache *AC = nullptr;
 
   bool isHashLikeValue(Value *V, VisitedSetTy &Visited);
   ValueRange getValueRange(Value *Op, VisitedSetTy &Visited);
@@ -99,7 +101,8 @@ class FastDivInsertionTask {
   Type *getSlowType() { return SlowDivOrRem->getType(); }
 
 public:
-  FastDivInsertionTask(Instruction *I, const BypassWidthsTy &BypassWidths);
+  FastDivInsertionTask(Instruction *I, const BypassWidthsTy &BypassWidths,
+                       AssumptionCache *AC);
 
   Value *getReplacement(DivCacheTy &Cache);
 };
@@ -107,7 +110,9 @@ public:
 } // end anonymous namespace
 
 FastDivInsertionTask::FastDivInsertionTask(Instruction *I,
-                                           const BypassWidthsTy &BypassWidths) {
+                                           const BypassWidthsTy &BypassWidths,
+                                           AssumptionCache *AC)
+    : AC(AC) {
   switch (I->getOpcode()) {
   case Instruction::UDiv:
   case Instruction::SDiv:
@@ -232,10 +237,19 @@ ValueRange FastDivInsertionTask::getValueRange(Value *V,
   assert(LongLen > ShortLen && "Value type must be wider than BypassType");
   unsigned HiBits = LongLen - ShortLen;
 
+  APInt BypassLimit = APInt(LongLen, 1).shl(ShortLen);
+  ConstantRange CR =
+      computeConstantRange(V, /*ForSigned=*/false, /*UseInstrInfo=*/true, AC,
+                           SlowDivOrRem);
+  if (CR.getUnsignedMax().ult(BypassLimit))
+    return VALRNG_KNOWN_SHORT;
+  if (CR.getUnsignedMin().uge(BypassLimit))
+    return VALRNG_LIKELY_LONG;
+
   const DataLayout &DL = SlowDivOrRem->getDataLayout();
   KnownBits Known(LongLen);
 
-  computeKnownBits(V, Known, DL);
+  computeKnownBits(V, Known, DL, AC, SlowDivOrRem);
 
   if (Known.countMinLeadingZeros() >= HiBits)
     return VALRNG_KNOWN_SHORT;
@@ -445,7 +459,8 @@ std::optional<QuotRemPair> FastDivInsertionTask::insertFastDivAndRem() {
 /// This optimization identifies DIV/REM instructions in a BB that can be
 /// profitably bypassed and carried out with a shorter, faster divide.
 bool llvm::bypassSlowDivision(BasicBlock *BB,
-                              const BypassWidthsTy &BypassWidths) {
+                              const BypassWidthsTy &BypassWidths,
+                              AssumptionCache *AC) {
   DivCacheTy PerBBDivCache;
 
   bool MadeChange = false;
@@ -460,7 +475,7 @@ bool llvm::bypassSlowDivision(BasicBlock *BB,
     if (I->use_empty())
       continue;
 
-    FastDivInsertionTask Task(I, BypassWidths);
+    FastDivInsertionTask Task(I, BypassWidths, AC);
     if (Value *Replacement = Task.getReplacement(PerBBDivCache)) {
       I->replaceAllUsesWith(Replacement);
       I->eraseFromParent();

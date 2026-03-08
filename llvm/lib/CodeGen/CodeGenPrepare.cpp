@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/FloatingPointPredicateUtils.h"
@@ -316,6 +317,7 @@ class CodeGenPrepare {
   std::unique_ptr<BlockFrequencyInfo> BFI;
   std::unique_ptr<BranchProbabilityInfo> BPI;
   ProfileSummaryInfo *PSI = nullptr;
+  AssumptionCache *AC = nullptr;
 
   /// As we scan instructions optimizing them, this is the next instruction
   /// to optimize. Transforms that can invalidate this should update it.
@@ -494,6 +496,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     // FIXME: When we can selectively preserve passes, preserve the domtree.
     AU.addRequired<ProfileSummaryInfoWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<TargetPassConfig>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
@@ -521,6 +524,7 @@ bool CodeGenPrepareLegacyPass::runOnFunction(Function &F) {
   CGP.BPI.reset(new BranchProbabilityInfo(F, *CGP.LI));
   CGP.BFI.reset(new BlockFrequencyInfo(F, *CGP.BPI, *CGP.LI));
   CGP.PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
+  CGP.AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
   auto BBSPRWP =
       getAnalysisIfAvailable<BasicBlockSectionsProfileReaderWrapperPass>();
   CGP.BBSectionsProfileReader = BBSPRWP ? &BBSPRWP->getBBSPR() : nullptr;
@@ -533,6 +537,7 @@ INITIALIZE_PASS_BEGIN(CodeGenPrepareLegacyPass, DEBUG_TYPE,
 INITIALIZE_PASS_DEPENDENCY(BasicBlockSectionsProfileReaderWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
@@ -569,6 +574,7 @@ bool CodeGenPrepare::run(Function &F, FunctionAnalysisManager &AM) {
   BFI.reset(new BlockFrequencyInfo(F, *BPI, *LI));
   auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
   PSI = MAMProxy.getCachedResult<ProfileSummaryAnalysis>(*F.getParent());
+  AC = &AM.getResult<AssumptionAnalysis>(F);
   BBSectionsProfileReader =
       AM.getCachedResult<BasicBlockSectionsProfileReaderAnalysis>(F);
   return _run(F);
@@ -612,7 +618,7 @@ bool CodeGenPrepare::_run(Function &F) {
       // optimization to those blocks.
       BasicBlock *Next = BB->getNextNode();
       if (!llvm::shouldOptimizeForSize(BB, PSI, BFI.get()))
-        EverMadeChange |= bypassSlowDivision(BB, BypassWidths);
+        EverMadeChange |= bypassSlowDivision(BB, BypassWidths, AC);
       BB = Next;
     }
   }
