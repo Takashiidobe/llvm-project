@@ -456,13 +456,21 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
   }
 
   // Only handle binary operators (including two-operand getelementptr) with
-  // one-use here. As with the cast case above, it may be possible to relax the
-  // one-use constraint, but that needs be examined carefully since it may not
-  // reduce the total number of instructions.
+  // profitable use counts here. As with the cast case above, it may be possible
+  // to relax this more, but that needs to be examined carefully since it may
+  // not reduce the total number of instructions.
   if (TI->getNumOperands() != 2 || FI->getNumOperands() != 2 ||
       !TI->isSameOperationAs(FI) ||
-      (!isa<BinaryOperator>(TI) && !isa<GetElementPtrInst>(TI)) ||
-      !TI->hasOneUse() || !FI->hasOneUse())
+      (!isa<BinaryOperator>(TI) && !isa<GetElementPtrInst>(TI)))
+    return nullptr;
+
+  // Most folds require both arms to be one-use to avoid instruction growth.
+  // For shifts, we can still be instruction-count neutral if one side is
+  // multi-use and the other is one-use.
+  bool AllowShiftWithMultiUse =
+      isa<BinaryOperator>(TI) && TI->isShift() &&
+      (TI->hasOneUse() || FI->hasOneUse());
+  if ((!TI->hasOneUse() || !FI->hasOneUse()) && !AllowShiftWithMultiUse)
     return nullptr;
 
   // Figure out if the operations have any operands in common.
