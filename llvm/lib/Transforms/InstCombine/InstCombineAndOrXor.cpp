@@ -2444,6 +2444,23 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
 
   Value *X, *Y;
   const APInt *C;
+  unsigned BitWidth = Ty->getScalarSizeInBits();
+
+  // (X >> (Y & (BitWidth - 1))) & 1 --> fshr(X, X, Y) & 1
+  // (X >> (urem Y, BitWidth)) & 1   --> fshr(X, X, Y) & 1
+  if (match(Op1, m_One()) && isPowerOf2_32(BitWidth)) {
+    Value *ShX;
+    if (match(Op0, m_OneUse(m_LShr(m_Value(X), m_c_And(m_Value(ShX),
+                                                        m_SpecificInt(BitWidth - 1))))) ||
+        match(Op0, m_OneUse(m_LShr(m_Value(X),
+                                   m_URem(m_Value(ShX), m_SpecificInt(BitWidth)))))) {
+      Function *Fshr =
+          Intrinsic::getOrInsertDeclaration(I.getModule(), Intrinsic::fshr, Ty);
+      Value *Rot = Builder.CreateCall(Fshr, {X, X, ShX});
+      return BinaryOperator::CreateAnd(Rot, Op1);
+    }
+  }
+
   if ((match(Op0, m_OneUse(m_LogicalShift(m_One(), m_Value(X)))) ||
        (match(Op0, m_OneUse(m_Shl(m_APInt(C), m_Value(X)))) && (*C)[0])) &&
       match(Op1, m_One())) {

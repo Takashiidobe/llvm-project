@@ -1229,6 +1229,29 @@ Instruction *InstCombinerImpl::visitShl(BinaryOperator &I) {
     }
   }
 
+  // shl 1, MaskedAmt --> fshl(1, 1, MaskedAmt) if MaskedAmt is in-range.
+  // For power-of-2 bitwidth and mask (BitWidth - 1), use X directly:
+  // shl 1, (X & (BitWidth - 1)) --> fshl(1, 1, X).
+  if (match(Op0, m_One())) {
+    Value *ShAmt = Op1;
+    Value *X;
+    const APInt *MaskC;
+    if (match(Op1, m_c_And(m_Value(X), m_APInt(MaskC))) && MaskC->ult(BitWidth)) {
+      if (isPowerOf2_32(BitWidth) && *MaskC == BitWidth - 1)
+        ShAmt = X;
+    } else if (match(Op1, m_URem(m_Value(X), m_SpecificInt(BitWidth)))) {
+      ShAmt = X;
+    } else {
+      ShAmt = nullptr;
+    }
+
+    if (ShAmt) {
+      Function *Fshl =
+          Intrinsic::getOrInsertDeclaration(I.getModule(), Intrinsic::fshl, Ty);
+      return CallInst::Create(Fshl, {Op0, Op0, ShAmt});
+    }
+  }
+
   if (setShiftFlags(I, Q))
     return &I;
 
@@ -1297,6 +1320,42 @@ Instruction *InstCombinerImpl::visitLShr(BinaryOperator &I) {
   Value *X;
   const APInt *C;
   unsigned BitWidth = Ty->getScalarSizeInBits();
+
+  auto getInRangeShiftAmt = [&](Value *V) -> Value * {
+    Value *ShX;
+    const APInt *MaskC;
+    if (match(V, m_c_And(m_Value(ShX), m_APInt(MaskC))) && MaskC->ult(BitWidth)) {
+      if (isPowerOf2_32(BitWidth) && *MaskC == BitWidth - 1)
+        return ShX;
+      return V;
+    }
+    if (match(V, m_URem(m_Value(ShX), m_SpecificInt(BitWidth))))
+      return ShX;
+    return nullptr;
+  };
+
+  // lshr signmask, MaskedAmt --> fshr(signmask, signmask, MaskedAmt)
+  // where MaskedAmt is known to be in-range.
+  if (match(Op0, m_SignMask())) {
+    if (Value *ShAmt = getInRangeShiftAmt(Op1)) {
+      Function *Fshr =
+          Intrinsic::getOrInsertDeclaration(I.getModule(), Intrinsic::fshr, Ty);
+      return CallInst::Create(Fshr, {Op0, Op0, ShAmt});
+    }
+  }
+
+  // (X << MaskedAmt) >> (BitWidth - 1) --> (fshl(X, X, MaskedAmt)) >> (BitWidth - 1)
+  // where MaskedAmt is known to be in-range.
+  if (match(Op1, m_SpecificInt(BitWidth - 1)) &&
+      match(Op0, m_OneUse(m_Shl(m_Value(X), m_Value())))) {
+    Value *ShlAmt = cast<BinaryOperator>(Op0)->getOperand(1);
+    if (Value *ShAmt = getInRangeShiftAmt(ShlAmt)) {
+      Function *Fshl =
+          Intrinsic::getOrInsertDeclaration(I.getModule(), Intrinsic::fshl, Ty);
+      Value *Rot = Builder.CreateCall(Fshl, {X, X, ShAmt});
+      return BinaryOperator::CreateLShr(Rot, Op1);
+    }
+  }
 
   // (iN (~X) u>> (N - 1)) --> zext (X > -1)
   if (match(Op0, m_OneUse(m_Not(m_Value(X)))) &&

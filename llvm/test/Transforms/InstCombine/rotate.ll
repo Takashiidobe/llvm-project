@@ -1086,3 +1086,101 @@ define i32 @not_rotl_i32_add_less(i32 %x, i32 %y) {
   %r = add i32 %shr, %shl
   ret i32 %r
 }
+
+define i64 @shl_one_masked_to_fshl(i64 %x) {
+; CHECK-LABEL: @shl_one_masked_to_fshl(
+; CHECK-NEXT:    [[R:%.*]] = call i64 @llvm.fshl.i64(i64 1, i64 1, i64 [[X:%.*]])
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %m = and i64 %x, 63
+  %r = shl i64 1, %m
+  ret i64 %r
+}
+
+define <8 x i64> @shl_one_masked_to_fshl_vec(<8 x i64> %x) {
+; CHECK-LABEL: @shl_one_masked_to_fshl_vec(
+; CHECK-NEXT:    [[R:%.*]] = call <8 x i64> @llvm.fshl.v8i64(<8 x i64> splat (i64 1), <8 x i64> splat (i64 1), <8 x i64> [[X:%.*]])
+; CHECK-NEXT:    ret <8 x i64> [[R]]
+;
+  %m = and <8 x i64> %x, <i64 63, i64 63, i64 63, i64 63, i64 63, i64 63, i64 63, i64 63>
+  %r = shl <8 x i64> <i64 1, i64 1, i64 1, i64 1, i64 1, i64 1, i64 1, i64 1>, %m
+  ret <8 x i64> %r
+}
+
+define i24 @shl_one_masked_nonpow2(i24 %x) {
+; CHECK-LABEL: @shl_one_masked_nonpow2(
+; CHECK-NEXT:    [[M:%.*]] = and i24 [[X:%.*]], 23
+; CHECK-NEXT:    [[R:%.*]] = call i24 @llvm.fshl.i24(i24 1, i24 1, i24 [[M]])
+; CHECK-NEXT:    ret i24 [[R]]
+;
+  %m = and i24 %x, 23
+  %r = shl i24 1, %m
+  ret i24 %r
+}
+
+define i24 @shl_one_urem_nonpow2(i24 %x) {
+; CHECK-LABEL: @shl_one_urem_nonpow2(
+; CHECK-NEXT:    [[R:%.*]] = call i24 @llvm.fshl.i24(i24 1, i24 1, i24 [[X:%.*]])
+; CHECK-NEXT:    ret i24 [[R]]
+;
+  %m = urem i24 %x, 24
+  %r = shl i24 1, %m
+  ret i24 %r
+}
+
+define i24 @shl_one_masked_nonpow2_no_fold(i24 %x) {
+; CHECK-LABEL: @shl_one_masked_nonpow2_no_fold(
+; CHECK-NEXT:    [[M:%.*]] = and i24 [[X:%.*]], 31
+; CHECK-NEXT:    [[R:%.*]] = shl nuw i24 1, [[M]]
+; CHECK-NEXT:    ret i24 [[R]]
+;
+  %m = and i24 %x, 31
+  %r = shl i24 1, %m
+  ret i24 %r
+}
+
+define i64 @lshr_signmask_masked_to_fshr(i64 %x) {
+; CHECK-LABEL: @lshr_signmask_masked_to_fshr(
+; CHECK-NEXT:    [[R:%.*]] = call i64 @llvm.fshr.i64(i64 -9223372036854775808, i64 -9223372036854775808, i64 [[X:%.*]])
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %m = and i64 %x, 63
+  %r = lshr i64 -9223372036854775808, %m
+  ret i64 %r
+}
+
+define i64 @bit_extract_masked_to_fshr(i64 %x, i64 %y) {
+; CHECK-LABEL: @bit_extract_masked_to_fshr(
+; CHECK-NEXT:    [[ROT:%.*]] = call i64 @llvm.fshr.i64(i64 [[X:%.*]], i64 [[X]], i64 [[Y:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = and i64 [[ROT]], 1
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %m = and i64 %y, 63
+  %s = lshr i64 %x, %m
+  %r = and i64 %s, 1
+  ret i64 %r
+}
+
+define i64 @bit_extract_masked_to_fshr_urem(i64 %x, i64 %y) {
+; CHECK-LABEL: @bit_extract_masked_to_fshr_urem(
+; CHECK-NEXT:    [[ROT:%.*]] = call i64 @llvm.fshr.i64(i64 [[X:%.*]], i64 [[X]], i64 [[Y:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = and i64 [[ROT]], 1
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %m = urem i64 %y, 64
+  %s = lshr i64 %x, %m
+  %r = and i64 %s, 1
+  ret i64 %r
+}
+
+define i64 @bit_extract_hi_after_shl_masked_to_fshl(i64 %x, i64 %y) {
+; CHECK-LABEL: @bit_extract_hi_after_shl_masked_to_fshl(
+; CHECK-NEXT:    [[ROT:%.*]] = call i64 @llvm.fshl.i64(i64 [[X:%.*]], i64 [[X]], i64 [[Y:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = lshr i64 [[ROT]], 63
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %m = and i64 %y, 63
+  %s = shl i64 %x, %m
+  %r = lshr i64 %s, 63
+  ret i64 %r
+}
