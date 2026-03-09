@@ -5051,6 +5051,7 @@ VPTESTM_CASE(v32i16, WZ##SUFFIX)
 }
 
 static void orderRegForMul(SDValue &N0, SDValue &N1, const unsigned LoReg,
+                           unsigned HiReg,
                            const MachineRegisterInfo &MRI) {
   auto GetPhysReg = [&](SDValue V) -> Register {
     if (V.getOpcode() != ISD::CopyFromReg)
@@ -5066,12 +5067,21 @@ static void orderRegForMul(SDValue &N0, SDValue &N1, const unsigned LoReg,
     return Op == ISD::Constant || Op == ISD::TargetConstant;
   };
 
-	// If one of the operands is in the wrong register, we move it to LoReg to avoid a move.
-	if (GetPhysReg(N1) == LoReg && GetPhysReg(N0) != LoReg)
+  // If one operand is already in LoReg, use it as the implicit source.
+  if (GetPhysReg(N1) == LoReg && GetPhysReg(N0) != LoReg)
     std::swap(N0, N1);
 
   if (GetPhysReg(N0) == LoReg || GetPhysReg(N1) == LoReg)
     return;
+
+  // If we're choosing between a constant and a variable and the variable is in
+  // a clobbered high result register (e.g. RDX for MUL), avoid forcing the
+  // constant into LoReg. Preserving the variable can be cheaper.
+  if (HiReg && (IsConstantLike(N0) != IsConstantLike(N1))) {
+    SDValue Var = IsConstantLike(N0) ? N1 : N0;
+    if (GetPhysReg(Var) == HiReg)
+      return;
+  }
 
   // If neither operand is in LoReg, prefer a constant there to avoid
   // an extra copy of a variable register in the implicit source register.
@@ -5791,26 +5801,30 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     SDValue N0 = Node->getOperand(0);
     SDValue N1 = Node->getOperand(1);
 
-    unsigned LoReg, ROpc, MOpc;
+    unsigned LoReg, HiReg, ROpc, MOpc;
     switch (NVT.SimpleTy) {
     default: llvm_unreachable("Unsupported VT!");
     case MVT::i8:
       LoReg = X86::AL;
+      HiReg = X86::AH;
       ROpc = Opcode == X86ISD::SMUL ? X86::IMUL8r : X86::MUL8r;
       MOpc = Opcode == X86ISD::SMUL ? X86::IMUL8m : X86::MUL8m;
       break;
     case MVT::i16:
       LoReg = X86::AX;
+      HiReg = X86::DX;
       ROpc = X86::MUL16r;
       MOpc = X86::MUL16m;
       break;
     case MVT::i32:
       LoReg = X86::EAX;
+      HiReg = X86::EDX;
       ROpc = X86::MUL32r;
       MOpc = X86::MUL32m;
       break;
     case MVT::i64:
       LoReg = X86::RAX;
+      HiReg = X86::RDX;
       ROpc = X86::MUL64r;
       MOpc = X86::MUL64m;
       break;
@@ -5828,7 +5842,8 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     // UMUL/SMUL have an implicit source in LoReg (AL/AX/EAX/RAX). Prefer the
     // operand that's already there to avoid an extra register-to-register move.
     if (!FoldedLoad)
-      orderRegForMul(N0, N1, LoReg, CurDAG->getMachineFunction().getRegInfo());
+      orderRegForMul(N0, N1, LoReg, HiReg,
+                     CurDAG->getMachineFunction().getRegInfo());
 
     SDValue InGlue = CurDAG->getCopyToReg(CurDAG->getEntryNode(), dl, LoReg,
                                           N0, SDValue()).getValue(1);
@@ -5919,7 +5934,8 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     // UMUL/SMUL_LOHI has an implicit source in LoReg (RDX for MULX, RAX for
     // MUL/IMUL). Prefer the operand that's already there.
     if (!foldedLoad)
-      orderRegForMul(N0, N1, LoReg, CurDAG->getMachineFunction().getRegInfo());
+      orderRegForMul(N0, N1, LoReg, UseMULX ? 0 : HiReg,
+                     CurDAG->getMachineFunction().getRegInfo());
 
     SDValue InGlue = CurDAG->getCopyToReg(CurDAG->getEntryNode(), dl, LoReg,
                                           N0, SDValue()).getValue(1);
