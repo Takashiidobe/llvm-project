@@ -193,51 +193,44 @@ define i32 @test_fshr_special_case(i32 %x0, i32 %x1, i32 %y) {
 define i64 @test_rotl_udiv_special_case(i64 %i) {
 ; X86-LABEL: test_rotl_udiv_special_case:
 ; X86:       # %bb.0:
-; X86-NEXT:    pushl %ebx
-; X86-NEXT:    .cfi_def_cfa_offset 8
 ; X86-NEXT:    pushl %edi
-; X86-NEXT:    .cfi_def_cfa_offset 12
+; X86-NEXT:    .cfi_def_cfa_offset 8
 ; X86-NEXT:    pushl %esi
-; X86-NEXT:    .cfi_def_cfa_offset 16
-; X86-NEXT:    .cfi_offset %esi, -16
-; X86-NEXT:    .cfi_offset %edi, -12
-; X86-NEXT:    .cfi_offset %ebx, -8
+; X86-NEXT:    .cfi_def_cfa_offset 12
+; X86-NEXT:    .cfi_offset %esi, -12
+; X86-NEXT:    .cfi_offset %edi, -8
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %esi
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %edi
-; X86-NEXT:    movl %ecx, %esi
-; X86-NEXT:    addl %edi, %esi
-; X86-NEXT:    adcl $0, %esi
-; X86-NEXT:    movl $-1431655765, %ebx # imm = 0xAAAAAAAB
-; X86-NEXT:    movl %esi, %eax
-; X86-NEXT:    mull %ebx
+; X86-NEXT:    movl %esi, %edi
+; X86-NEXT:    addl %ecx, %edi
+; X86-NEXT:    adcl $0, %edi
+; X86-NEXT:    movl $-1431655765, %eax # imm = 0xAAAAAAAB
+; X86-NEXT:    mull %edi
 ; X86-NEXT:    shrl %edx
 ; X86-NEXT:    leal (%edx,%edx,2), %eax
-; X86-NEXT:    subl %eax, %esi
-; X86-NEXT:    subl %esi, %ecx
-; X86-NEXT:    sbbl $0, %edi
-; X86-NEXT:    movl %ecx, %eax
-; X86-NEXT:    mull %ebx
-; X86-NEXT:    imull $-1431655766, %ecx, %ecx # imm = 0xAAAAAAAA
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    imull $-1431655765, %edi, %ecx # imm = 0xAAAAAAAB
+; X86-NEXT:    subl %eax, %edi
+; X86-NEXT:    subl %edi, %esi
+; X86-NEXT:    sbbl $0, %ecx
+; X86-NEXT:    movl $-1431655765, %eax # imm = 0xAAAAAAAB
+; X86-NEXT:    mull %esi
+; X86-NEXT:    imull $-1431655766, %esi, %esi # imm = 0xAAAAAAAA
+; X86-NEXT:    addl %esi, %edx
+; X86-NEXT:    imull $-1431655765, %ecx, %ecx # imm = 0xAAAAAAAB
 ; X86-NEXT:    addl %ecx, %edx
 ; X86-NEXT:    movl %edx, %ecx
 ; X86-NEXT:    shldl $28, %eax, %ecx
 ; X86-NEXT:    shrdl $4, %eax, %edx
 ; X86-NEXT:    movl %ecx, %eax
 ; X86-NEXT:    popl %esi
-; X86-NEXT:    .cfi_def_cfa_offset 12
-; X86-NEXT:    popl %edi
 ; X86-NEXT:    .cfi_def_cfa_offset 8
-; X86-NEXT:    popl %ebx
+; X86-NEXT:    popl %edi
 ; X86-NEXT:    .cfi_def_cfa_offset 4
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: test_rotl_udiv_special_case:
 ; X64:       # %bb.0:
-; X64-NEXT:    movq %rdi, %rax
-; X64-NEXT:    movabsq $-6148914691236517205, %rcx # imm = 0xAAAAAAAAAAAAAAAB
-; X64-NEXT:    mulq %rcx
+; X64-NEXT:    movabsq $-6148914691236517205, %rax # imm = 0xAAAAAAAAAAAAAAAB
+; X64-NEXT:    mulq %rdi
 ; X64-NEXT:    movq %rdx, %rax
 ; X64-NEXT:    shrq %rax
 ; X64-NEXT:    rolq $60, %rax

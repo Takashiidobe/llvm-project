@@ -1316,9 +1316,8 @@ continue:
 define i1 @bug27873(i64 %c1, i1 %c2) {
 ; LINUX-LABEL: bug27873:
 ; LINUX:       # %bb.0:
-; LINUX-NEXT:    movq %rdi, %rax
-; LINUX-NEXT:    movl $160, %ecx
-; LINUX-NEXT:    mulq %rcx
+; LINUX-NEXT:    movl $160, %eax
+; LINUX-NEXT:    mulq %rdi
 ; LINUX-NEXT:    seto %al
 ; LINUX-NEXT:    orb %sil, %al
 ; LINUX-NEXT:    retq
@@ -1326,8 +1325,7 @@ define i1 @bug27873(i64 %c1, i1 %c2) {
 ; WIN64-LABEL: bug27873:
 ; WIN64:       # %bb.0:
 ; WIN64-NEXT:    movl %edx, %r8d
-; WIN64-NEXT:    movq %rcx, %rax
-; WIN64-NEXT:    movl $160, %ecx
+; WIN64-NEXT:    movl $160, %eax
 ; WIN64-NEXT:    mulq %rcx
 ; WIN64-NEXT:    seto %al
 ; WIN64-NEXT:    orb %r8b, %al

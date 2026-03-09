@@ -1002,8 +1002,8 @@ define void @pr59676_frozen(ptr %dst, i32 %x.orig) {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    imull %eax, %eax
-; X86-NEXT:    imull $84, %eax, %eax
-; X86-NEXT:    movl $818089009, %edx # imm = 0x30C30C31
+; X86-NEXT:    imull $84, %eax, %edx
+; X86-NEXT:    movl $818089009, %eax # imm = 0x30C30C31
 ; X86-NEXT:    imull %edx
 ; X86-NEXT:    movl %edx, %eax
 ; X86-NEXT:    shrl $31, %eax
@@ -1040,8 +1040,8 @@ define void @pr59676_nsw_frozen(ptr %dst, i32 %x.orig) {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    imull %eax, %eax
-; X86-NEXT:    imull $84, %eax, %eax
-; X86-NEXT:    movl $818089009, %edx # imm = 0x30C30C31
+; X86-NEXT:    imull $84, %eax, %edx
+; X86-NEXT:    movl $818089009, %eax # imm = 0x30C30C31
 ; X86-NEXT:    imull %edx
 ; X86-NEXT:    movl %edx, %eax
 ; X86-NEXT:    shrl $31, %eax
@@ -1078,8 +1078,8 @@ define void @pr59676_nsw(ptr %dst, i32 %x) {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    imull %eax, %eax
-; X86-NEXT:    imull $84, %eax, %eax
-; X86-NEXT:    movl $818089009, %edx # imm = 0x30C30C31
+; X86-NEXT:    imull $84, %eax, %edx
+; X86-NEXT:    movl $818089009, %eax # imm = 0x30C30C31
 ; X86-NEXT:    imull %edx
 ; X86-NEXT:    movl %edx, %eax
 ; X86-NEXT:    shrl $31, %eax

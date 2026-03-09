@@ -468,9 +468,9 @@ define <4 x i32> @udiv_op0_constant(ptr %p) nounwind {
 define <2 x i64> @udiv_op1_constant(ptr %p) nounwind {
 ; SSE-LABEL: udiv_op1_constant:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movq (%rdi), %rax
-; SSE-NEXT:    shrq %rax
-; SSE-NEXT:    movabsq $-4392081922311798003, %rcx # imm = 0xC30C30C30C30C30D
+; SSE-NEXT:    movq (%rdi), %rcx
+; SSE-NEXT:    shrq %rcx
+; SSE-NEXT:    movabsq $-4392081922311798003, %rax # imm = 0xC30C30C30C30C30D
 ; SSE-NEXT:    mulq %rcx
 ; SSE-NEXT:    movq %rdx, %xmm0
 ; SSE-NEXT:    psrlq $4, %xmm0
@@ -478,9 +478,9 @@ define <2 x i64> @udiv_op1_constant(ptr %p) nounwind {
 ;
 ; AVX-LABEL: udiv_op1_constant:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    movq (%rdi), %rax
-; AVX-NEXT:    shrq %rax
-; AVX-NEXT:    movabsq $-4392081922311798003, %rcx # imm = 0xC30C30C30C30C30D
+; AVX-NEXT:    movq (%rdi), %rcx
+; AVX-NEXT:    shrq %rcx
+; AVX-NEXT:    movabsq $-4392081922311798003, %rax # imm = 0xC30C30C30C30C30D
 ; AVX-NEXT:    mulq %rcx
 ; AVX-NEXT:    vmovq %rdx, %xmm0
 ; AVX-NEXT:    vpsrlq $4, %xmm0, %xmm0

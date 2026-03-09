@@ -440,17 +440,15 @@ define i64 @combine_mul_smul_lohi_commute_i64(i64 %a, i64 %b) {
 define i64 @combine_mul_umul_lohi_const_i64(i64 %h) {
 ; SSE-LABEL: combine_mul_umul_lohi_const_i64:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movq %rdi, %rax
-; SSE-NEXT:    movabsq $-4265267296055464877, %rcx # imm = 0xC4CEB9FE1A85EC53
-; SSE-NEXT:    mulq %rcx
+; SSE-NEXT:    movabsq $-4265267296055464877, %rax # imm = 0xC4CEB9FE1A85EC53
+; SSE-NEXT:    mulq %rdi
 ; SSE-NEXT:    xorq %rdx, %rax
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: combine_mul_umul_lohi_const_i64:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    movq %rdi, %rax
-; AVX-NEXT:    movabsq $-4265267296055464877, %rcx # imm = 0xC4CEB9FE1A85EC53
-; AVX-NEXT:    mulq %rcx
+; AVX-NEXT:    movabsq $-4265267296055464877, %rax # imm = 0xC4CEB9FE1A85EC53
+; AVX-NEXT:    mulq %rdi
 ; AVX-NEXT:    xorq %rdx, %rax
 ; AVX-NEXT:    retq
   %h128 = zext i64 %h to i128
@@ -465,24 +463,22 @@ define i64 @combine_mul_umul_lohi_const_i64(i64 %h) {
 define i64 @combine_mul_smul_lohi_const_i64(i64 %h) {
 ; SSE-LABEL: combine_mul_smul_lohi_const_i64:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movq %rdi, %rax
-; SSE-NEXT:    movq %rdi, %rcx
-; SSE-NEXT:    sarq $63, %rcx
-; SSE-NEXT:    movabsq $-4265267296055464877, %rsi # imm = 0xC4CEB9FE1A85EC53
-; SSE-NEXT:    mulq %rsi
-; SSE-NEXT:    imulq %rsi, %rcx
+; SSE-NEXT:    movabsq $-4265267296055464877, %rcx # imm = 0xC4CEB9FE1A85EC53
+; SSE-NEXT:    movq %rcx, %rax
+; SSE-NEXT:    mulq %rdi
+; SSE-NEXT:    sarq $63, %rdi
+; SSE-NEXT:    imulq %rdi, %rcx
 ; SSE-NEXT:    addq %rdx, %rcx
 ; SSE-NEXT:    xorq %rcx, %rax
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: combine_mul_smul_lohi_const_i64:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    movq %rdi, %rax
-; AVX-NEXT:    movq %rdi, %rcx
-; AVX-NEXT:    sarq $63, %rcx
-; AVX-NEXT:    movabsq $-4265267296055464877, %rsi # imm = 0xC4CEB9FE1A85EC53
-; AVX-NEXT:    mulq %rsi
-; AVX-NEXT:    imulq %rsi, %rcx
+; AVX-NEXT:    movabsq $-4265267296055464877, %rcx # imm = 0xC4CEB9FE1A85EC53
+; AVX-NEXT:    movq %rcx, %rax
+; AVX-NEXT:    mulq %rdi
+; AVX-NEXT:    sarq $63, %rdi
+; AVX-NEXT:    imulq %rdi, %rcx
 ; AVX-NEXT:    addq %rdx, %rcx
 ; AVX-NEXT:    xorq %rcx, %rax
 ; AVX-NEXT:    retq

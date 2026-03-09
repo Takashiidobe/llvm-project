@@ -426,9 +426,8 @@ define i64 @test5(i64 %a) {
 ; X86-NEXT:    movl %esi, %eax
 ; X86-NEXT:    shll $5, %eax
 ; X86-NEXT:    subl %eax, %esi
-; X86-NEXT:    movl $-31, %edx
-; X86-NEXT:    movl %ecx, %eax
-; X86-NEXT:    mull %edx
+; X86-NEXT:    movl $-31, %eax
+; X86-NEXT:    mull %ecx
 ; X86-NEXT:    subl %ecx, %edx
 ; X86-NEXT:    addl %esi, %edx
 ; X86-NEXT:    popl %esi
@@ -482,9 +481,8 @@ define i64 @test7(i64 %a) {
 ; X86-NEXT:    movl %eax, %esi
 ; X86-NEXT:    shll $5, %esi
 ; X86-NEXT:    addl %eax, %esi
-; X86-NEXT:    movl $-33, %edx
-; X86-NEXT:    movl %ecx, %eax
-; X86-NEXT:    mull %edx
+; X86-NEXT:    movl $-33, %eax
+; X86-NEXT:    mull %ecx
 ; X86-NEXT:    subl %ecx, %edx
 ; X86-NEXT:    subl %esi, %edx
 ; X86-NEXT:    popl %esi
@@ -509,9 +507,8 @@ define i64 @testOverflow(i64 %a) {
 ; X86-NEXT:    .cfi_def_cfa_offset 8
 ; X86-NEXT:    .cfi_offset %esi, -8
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-NEXT:    movl $-1, %edx
-; X86-NEXT:    movl %ecx, %eax
-; X86-NEXT:    mull %edx
+; X86-NEXT:    movl $-1, %eax
+; X86-NEXT:    mull %ecx
 ; X86-NEXT:    movl %ecx, %esi
 ; X86-NEXT:    shll $31, %esi
 ; X86-NEXT:    subl %ecx, %esi
