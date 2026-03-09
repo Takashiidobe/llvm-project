@@ -5061,7 +5061,21 @@ static void orderRegForMul(SDValue &N0, SDValue &N1, const unsigned LoReg,
     return Reg;
   };
 
-  if (GetPhysReg(N1) == LoReg && GetPhysReg(N0) != LoReg)
+  auto IsConstantLike = [](SDValue V) {
+    auto Op = V.getOpcode();
+    return Op == ISD::Constant || Op == ISD::TargetConstant;
+  };
+
+	// If one of the operands is in the wrong register, we move it to LoReg to avoid a move.
+	if (GetPhysReg(N1) == LoReg && GetPhysReg(N0) != LoReg)
+    std::swap(N0, N1);
+
+  if (GetPhysReg(N0) == LoReg || GetPhysReg(N1) == LoReg)
+    return;
+
+  // If neither operand is in LoReg, prefer a constant there to avoid
+  // an extra copy of a variable register in the implicit source register.
+  if (IsConstantLike(N1) && !IsConstantLike(N0))
     std::swap(N0, N1);
 }
 
