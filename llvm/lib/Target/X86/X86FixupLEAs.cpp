@@ -583,6 +583,37 @@ bool FixupLEAsImpl::optTwoAddrLEA(MachineBasicBlock::iterator &I,
 
   MachineInstr *NewMI = nullptr;
 
+  // POC: Fold:
+  //   movabs  base, C
+  //   lea     dst, [base + D]
+  // into:
+  //   movabs  dst, C + D
+  // Restrict to adjacent instructions and base-only addressing.
+  if (MI.getOpcode() == X86::LEA64r && DestReg != BaseReg &&
+      BaseReg.isValid() && !IndexReg.isValid() && Disp.getImm() != 0 &&
+      I != MBB.begin()) {
+    MachineBasicBlock::iterator PrevI = std::prev(I);
+    MachineInstr &Prev = *PrevI;
+    if ((Prev.getOpcode() == X86::MOV64ri ||
+         Prev.getOpcode() == X86::MOV64ri32) &&
+        Prev.getOperand(0).isReg() && Prev.getOperand(1).isImm() &&
+        Prev.getOperand(0).getReg() == BaseReg) {
+      uint64_t MovImm = static_cast<uint64_t>(Prev.getOperand(1).getImm());
+      uint64_t DispImm = static_cast<uint64_t>(Disp.getImm());
+      int64_t NewImm = static_cast<int64_t>(MovImm + DispImm);
+      NewMI =
+          BuildMI(MBB, I, MI.getDebugLoc(), TII->get(Prev.getOpcode()), DestReg)
+              .addImm(NewImm);
+      MBB.getParent()->substituteDebugValuesForInst(*I, *NewMI, 1);
+      MBB.erase(I);
+      I = NewMI;
+      // If the base is killed by the LEA, the old MOV is now dead.
+      if (Base.isKill())
+        MBB.erase(PrevI);
+      return true;
+    }
+  }
+
   // Case 1.
   // Look for lea(%reg1, %reg2), %reg1 or lea(%reg2, %reg1), %reg1
   // which can be turned into add %reg2, %reg1
