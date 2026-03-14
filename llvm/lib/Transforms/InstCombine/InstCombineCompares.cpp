@@ -8611,6 +8611,48 @@ static Instruction *foldSqrtWithFcmpZero(FCmpInst &I, InstCombinerImpl &IC) {
   }
 }
 
+/// Fold: fcmp eq/ne (fadd (fmul X, C1), C2), 0.0 --> fcmp eq/ne X, -C2/C1
+/// This transformation is valid without fast-math flags because:
+/// (1) In IEEE 754, (a + b == 0) iff (a == -b) exactly — the rounded sum is
+///     zero only when the addends are exact negatives of each other.
+/// (2) Multiplication by a power-of-2 constant is exact and injective.
+static Instruction *foldFCmpEqFMulLinear(FCmpInst &I) {
+  if (!FCmpInst::isEquality(I.getPredicate()))
+    return nullptr;
+
+  Value *Op0 = I.getOperand(0);
+  if (!match(I.getOperand(1), m_AnyZeroFP()))
+    return nullptr;
+
+  // Match: fadd (fmul X, C1), C2, including commuted variants.
+  Value *X;
+  const APFloat *C1, *C2;
+  if (!match(Op0, m_c_FAdd(m_c_FMul(m_Value(X), m_APFloat(C1)), m_APFloat(C2))))
+    return nullptr;
+
+  // C1 must be a positive power of 2 so that fmul X, C1 is exact and
+  // injective. getExactLog2() returns INT_MIN for non-positive-power-of-2.
+  if (C1->getExactLog2() == INT_MIN)
+    return nullptr;
+
+  // Compute C3 = -C2 / C1 (the unique X satisfying X*C1 + C2 == 0).
+  APFloat C3 = *C2;
+  C3.changeSign(); // C3 = -C2
+  if (C3.divide(*C1, APFloat::rmNearestTiesToEven) != APFloat::opOK)
+    return nullptr;
+
+  // Round-trip check: verify C3 * C1 == -C2 exactly.
+  APFloat RoundTrip = C3;
+  APFloat NegC2 = *C2;
+  NegC2.changeSign();
+  if (RoundTrip.multiply(*C1, APFloat::rmNearestTiesToEven) != APFloat::opOK ||
+      !RoundTrip.bitwiseIsEqual(NegC2))
+    return nullptr;
+
+  Constant *NewRHS = ConstantFP::get(Op0->getType(), C3);
+  return new FCmpInst(I.getPredicate(), X, NewRHS, "", &I);
+}
+
 static Instruction *foldFCmpFNegCommonOp(FCmpInst &I) {
   CmpInst::Predicate Pred = I.getPredicate();
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
@@ -8980,6 +9022,9 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
       break;
     }
   }
+
+  if (Instruction *R = foldFCmpEqFMulLinear(I))
+    return R;
 
   if (Instruction *R = foldFabsWithFcmpZero(I, *this))
     return R;
