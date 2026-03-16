@@ -14,6 +14,7 @@
 #include "MCTargetDesc/X86MCTargetDesc.h"
 #include "TargetInfo/X86TargetInfo.h"
 #include "X86.h"
+#include "X86FlagsClusterMutation.h"
 #include "X86MachineFunctionInfo.h"
 #include "X86MacroFusion.h"
 #include "X86Subtarget.h"
@@ -542,6 +543,14 @@ void X86PassConfig::addPreRegAlloc() {
 
 void X86PassConfig::addMachineSSAOptimization() {
   addPass(createX86DomainReassignmentLegacyPass());
+  // Move EFLAGS-producing instructions (LZCNT, TZCNT, POPCNT, NEG, BLS*)
+  // immediately before the CMP/TEST that compares the same register against
+  // zero. This inserts after MachineSinking (within addMachineSSAOptimization)
+  // so that optimizeCompareInstr in the PeepholeOptimizer can eliminate the
+  // now-redundant CMP/TEST and rewrite downstream condition codes
+  // (CMOV NE -> CMOV AE, Jcc NE -> JAE).
+  if (getOptLevel() != CodeGenOptLevel::None)
+    insertPass(&MachineSinkingLegacyID, createX86EFlagsReorderPass());
   TargetPassConfig::addMachineSSAOptimization();
 }
 

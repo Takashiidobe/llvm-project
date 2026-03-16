@@ -114,6 +114,12 @@ int getFirstAddrOperandIdx(const MachineInstr &MI);
 /// Find any constant pool entry associated with a specific instruction operand.
 const Constant *getConstantFromPool(const MachineInstr &MI, unsigned OpNo);
 
+/// Return the condition code and source operand index if \p MI is an
+/// EFLAGS-producing instruction whose flags can substitute for a subsequent
+/// comparison against zero (e.g. LZCNT, TZCNT, POPCNT, NEG, BSF/BSR, BLS*).
+/// Returns {COND_INVALID, ~0U} if the instruction is not convertible.
+std::pair<CondCode, unsigned> isUseDefConvertible(const MachineInstr &MI);
+
 } // namespace X86
 
 /// isGlobalStubReference - Return true if the specified TargetFlag operand is

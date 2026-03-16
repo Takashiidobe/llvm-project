@@ -5233,7 +5233,8 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag,
 
 /// Check whether the use can be converted to remove a comparison against zero.
 /// Returns the EFLAGS condition and the operand that we are comparing against zero.
-static std::pair<X86::CondCode, unsigned> isUseDefConvertible(const MachineInstr &MI) {
+std::pair<X86::CondCode, unsigned>
+X86::isUseDefConvertible(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default:
     return std::make_pair(X86::COND_INVALID, ~0U);
@@ -5407,7 +5408,7 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
         //      ...                 // EFLAGS not changed
         //      testl %eax, %eax    // <-- can be removed
         if (IsCmpZero) {
-          std::tie(NewCC, OpNo) = isUseDefConvertible(Inst);
+          std::tie(NewCC, OpNo) = X86::isUseDefConvertible(Inst);
           if (NewCC != X86::COND_INVALID && Inst.getOperand(OpNo).isReg() &&
               Inst.getOperand(OpNo).getReg() == SrcReg) {
             ShouldUpdateCC = true;

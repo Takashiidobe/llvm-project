@@ -1,0 +1,65 @@
+# RUN: llc -mtriple=x86_64-unknown-linux-gnu -mcpu=znver3 \
+# RUN:     -run-pass=machine-scheduler -o - %s | FileCheck %s
+#
+# Verify that X86FlagsClusterDAGMutation clusters an EFLAGS-producing
+# instruction (TZCNT, LZCNT, POPCNT) immediately before the TEST/CMP that
+# compares the same register against zero.
+#
+# Without the mutation the second TZCNT on a different register (%1) falls
+# between TZCNT %0 and TEST %0, blocking compare-elimination.  The mutation
+# adds a cluster edge that forces TZCNT %0 to be scheduled immediately before
+# TEST %0.
+#
+# CHECK-LABEL: bb.0
+# Scheduler places TZCNT %1 (y) first, then the COPY for %0, then TZCNT %0
+# (x) clustered immediately before TEST %0.  Without the mutation TZCNT %0
+# would appear earlier in the block, putting it two instructions away from the
+# TEST and blocking compare-elimination.
+# CHECK:      TZCNT32rr %1
+# CHECK-NEXT: COPY $edi
+# CHECK-NEXT: TZCNT32rr %0
+# CHECK-NEXT: TEST32rr %0, %0
+
+--- |
+  target triple = "x86_64-unknown-linux-gnu"
+
+  define i32 @tzcnt_cluster(i32 %x, i32 %y) {
+    %tz_x = tail call i32 @llvm.cttz.i32(i32 %x, i1 true)
+    %tz_y = tail call i32 @llvm.cttz.i32(i32 %y, i1 true)
+    %cmp = icmp eq i32 %x, 0
+    %sel = select i1 %cmp, i32 %tz_y, i32 %tz_x
+    ret i32 %sel
+  }
+
+  declare i32 @llvm.cttz.i32(i32, i1)
+...
+---
+name:            tzcnt_cluster
+alignment:       1
+tracksRegLiveness: true
+registers:
+  - { id: 0, class: gr32 }
+  - { id: 1, class: gr32 }
+  - { id: 2, class: gr32 }
+  - { id: 3, class: gr32 }
+  - { id: 4, class: gr32 }
+liveins:
+  - { reg: '$edi', virtual-reg: '%0' }
+  - { reg: '$esi', virtual-reg: '%1' }
+frameInfo:
+  maxCallFrameSize: 4294967295
+machineFunctionInfo:
+  amxProgModel:    None
+body:             |
+  bb.0 (%ir-block.0):
+    liveins: $edi, $esi
+
+    %1:gr32 = COPY $esi
+    %0:gr32 = COPY $edi
+    %2:gr32 = TZCNT32rr %0, implicit-def dead $eflags
+    %4:gr32 = TZCNT32rr %1, implicit-def dead $eflags
+    TEST32rr %0, %0, implicit-def $eflags
+    %4:gr32 = CMOV32rr %4, %2, 5, implicit killed $eflags
+    $eax = COPY %4
+    RET 0, killed $eax
+...
