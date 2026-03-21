@@ -1915,6 +1915,36 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   if (Instruction *Res = foldBinOpOfSelectAndCastOfSelectCondition(I))
     return Res;
 
+  // Fold the div_ceil idiom:
+  //   add(zext(udiv(A, C)), zext(icmp ne(urem(A, C), 0)))
+  //     -> zext(udiv(add nuw(A, C - 1), C))
+  // The quotient-plus-round-up pattern is equivalent to a ceiling division,
+  // which lets the backend strength-reduce the division by a constant.
+  {
+    Value *A;
+    const APInt *C1, *C2;
+    CmpPredicate Pred;
+    if (match(
+            &I,
+            m_c_Add(m_OneUse(m_ZExt(m_OneUse(m_UDiv(m_Value(A), m_APInt(C1))))),
+                    m_ZExt(m_OneUse(m_ICmp(
+                        Pred, m_OneUse(m_URem(m_Deferred(A), m_APInt(C2))),
+                        m_Zero()))))) &&
+        Pred == ICmpInst::ICMP_NE && *C1 == *C2 && C1->ugt(1)) {
+      Value *CMinusOne = ConstantInt::get(A->getType(), *C1 - 1);
+      // A + (C-1) must not overflow unsigned. Check via KnownBits: if the max
+      // possible value of A satisfies MaxA <= UINT_MAX - (C-1), it's safe.
+      KnownBits Known = computeKnownBits(A, &I);
+      APInt MaxA = Known.getMaxValue();
+      if (MaxA.ule(APInt::getMaxValue(MaxA.getBitWidth()) - (*C1 - 1))) {
+        Value *NUWAdd = Builder.CreateAdd(A, CMinusOne, "", /*HasNUW=*/true);
+        Value *Div =
+            Builder.CreateUDiv(NUWAdd, ConstantInt::get(A->getType(), *C1));
+        return new ZExtInst(Div, I.getType());
+      }
+    }
+  }
+
   // Re-enqueue users of the induction variable of add recurrence if we infer
   // new nuw/nsw flags.
   if (Changed) {

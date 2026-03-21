@@ -596,6 +596,20 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
       auto *Bw = ConstantInt::get(Ty, APInt(BitWidth, BitWidth));
       return IC.replaceInstUsesWith(II, IC.Builder.CreateSub(Bw, Cttz));
     }
+
+    // ctlz(zext(x), true) -> zext(ctlz(x, true)) + (DestWidth - SrcWidth)
+    // Zero-extension prepends (DestWidth - SrcWidth) zero bits, so the number
+    // of leading zeros of the wide value equals the leading zeros of the narrow
+    // value plus the number of extended bits.
+    if (match(Op0, m_OneUse(m_ZExt(m_Value(X)))) && match(Op1, m_One())) {
+      auto *Ctlz = IC.Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, X,
+                                                    IC.Builder.getTrue());
+      auto *ZextCtlz = IC.Builder.CreateZExt(Ctlz, II.getType());
+      unsigned SrcWidth = X->getType()->getScalarSizeInBits();
+      unsigned DstWidth = II.getType()->getScalarSizeInBits();
+      auto *Offset = ConstantInt::get(II.getType(), DstWidth - SrcWidth);
+      return IC.replaceInstUsesWith(II, IC.Builder.CreateAdd(ZextCtlz, Offset));
+    }
   }
 
   // cttz(Pow2) -> Log2(Pow2)
