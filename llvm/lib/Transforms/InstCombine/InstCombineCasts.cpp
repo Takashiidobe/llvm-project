@@ -1364,10 +1364,14 @@ bool TypeEvaluationHelper::canEvaluateZExtdImpl(Value *V, Type *Ty,
   case Instruction::Add:
   case Instruction::Sub:
   case Instruction::Mul:
+  case Instruction::UDiv:
+  case Instruction::URem:
     if (!canEvaluateZExtdImpl(I->getOperand(0), Ty, BitsToClear, IC, CxtI) ||
         !canEvaluateZExtdImpl(I->getOperand(1), Ty, Tmp, IC, CxtI))
       return false;
     // These can all be promoted if neither operand has 'bits to clear'.
+    // For UDiv/URem, zero-extension is transparent: zext(udiv(a,b)) ==
+    // udiv(zext(a),zext(b)) when both operands are zero-clean in the wide type.
     if (BitsToClear == 0 && Tmp == 0)
       return true;
 
