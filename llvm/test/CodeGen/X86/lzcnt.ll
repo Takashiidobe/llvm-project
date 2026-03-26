@@ -360,44 +360,46 @@ define i64 @lzcnt128(ptr %p) nounwind {
 ;
 ; X32-LABEL: lzcnt128:
 ; X32:       # %bb.0:
-; X32-NEXT:    movq 8(%edi), %rax
-; X32-NEXT:    lzcntq (%edi), %rcx
-; X32-NEXT:    addq $64, %rcx
-; X32-NEXT:    lzcntq %rax, %rax
-; X32-NEXT:    cmovbq %rcx, %rax
+; X32-NEXT:    movq 8(%edi), %rcx
+; X32-NEXT:    lzcntq %rcx, %rdx
+; X32-NEXT:    lzcntq (%edi), %rax
+; X32-NEXT:    addq $64, %rax
+; X32-NEXT:    testq %rcx, %rcx
+; X32-NEXT:    cmovneq %rdx, %rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: lzcnt128:
 ; X64:       # %bb.0:
-; X64-NEXT:    movq 8(%rdi), %rax
-; X64-NEXT:    lzcntq (%rdi), %rcx
-; X64-NEXT:    addq $64, %rcx
-; X64-NEXT:    lzcntq %rax, %rax
-; X64-NEXT:    cmovbq %rcx, %rax
+; X64-NEXT:    movq 8(%rdi), %rcx
+; X64-NEXT:    lzcntq %rcx, %rdx
+; X64-NEXT:    lzcntq (%rdi), %rax
+; X64-NEXT:    addq $64, %rax
+; X64-NEXT:    testq %rcx, %rcx
+; X64-NEXT:    cmovneq %rdx, %rax
 ; X64-NEXT:    retq
 ;
 ; X32-NOLZCNT-LABEL: lzcnt128:
 ; X32-NOLZCNT:       # %bb.0:
 ; X32-NOLZCNT-NEXT:    movq 8(%edi), %rcx
-; X32-NOLZCNT-NEXT:    bsrq (%edi), %rdx
+; X32-NOLZCNT-NEXT:    bsrq %rcx, %rdx
 ; X32-NOLZCNT-NEXT:    xorq $63, %rdx
-; X32-NOLZCNT-NEXT:    orq $64, %rdx
-; X32-NOLZCNT-NEXT:    bsrq %rcx, %rax
+; X32-NOLZCNT-NEXT:    bsrq (%edi), %rax
 ; X32-NOLZCNT-NEXT:    xorq $63, %rax
+; X32-NOLZCNT-NEXT:    orq $64, %rax
 ; X32-NOLZCNT-NEXT:    testq %rcx, %rcx
-; X32-NOLZCNT-NEXT:    cmoveq %rdx, %rax
+; X32-NOLZCNT-NEXT:    cmovneq %rdx, %rax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: lzcnt128:
 ; X64-NOLZCNT:       # %bb.0:
 ; X64-NOLZCNT-NEXT:    movq 8(%rdi), %rcx
-; X64-NOLZCNT-NEXT:    bsrq (%rdi), %rdx
+; X64-NOLZCNT-NEXT:    bsrq %rcx, %rdx
 ; X64-NOLZCNT-NEXT:    xorq $63, %rdx
-; X64-NOLZCNT-NEXT:    orq $64, %rdx
-; X64-NOLZCNT-NEXT:    bsrq %rcx, %rax
+; X64-NOLZCNT-NEXT:    bsrq (%rdi), %rax
 ; X64-NOLZCNT-NEXT:    xorq $63, %rax
+; X64-NOLZCNT-NEXT:    orq $64, %rax
 ; X64-NOLZCNT-NEXT:    testq %rcx, %rcx
-; X64-NOLZCNT-NEXT:    cmoveq %rdx, %rax
+; X64-NOLZCNT-NEXT:    cmovneq %rdx, %rax
 ; X64-NOLZCNT-NEXT:    retq
   %a = load i128, ptr %p, align 8
   %cnt = tail call i128 @llvm.ctlz.i128(i128 %a, i1 true)
@@ -448,44 +450,46 @@ define i64 @lzcnt128_no_lzcnt(ptr %p) nounwind {
 ;
 ; X32-LABEL: lzcnt128_no_lzcnt:
 ; X32:       # %bb.0:
-; X32-NEXT:    movq 8(%edi), %rax
-; X32-NEXT:    lzcntq (%edi), %rcx
-; X32-NEXT:    addq $64, %rcx
-; X32-NEXT:    lzcntq %rax, %rax
-; X32-NEXT:    cmovbq %rcx, %rax
+; X32-NEXT:    movq 8(%edi), %rcx
+; X32-NEXT:    lzcntq %rcx, %rdx
+; X32-NEXT:    lzcntq (%edi), %rax
+; X32-NEXT:    addq $64, %rax
+; X32-NEXT:    testq %rcx, %rcx
+; X32-NEXT:    cmovneq %rdx, %rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: lzcnt128_no_lzcnt:
 ; X64:       # %bb.0:
-; X64-NEXT:    movq 8(%rdi), %rax
-; X64-NEXT:    lzcntq (%rdi), %rcx
-; X64-NEXT:    addq $64, %rcx
-; X64-NEXT:    lzcntq %rax, %rax
-; X64-NEXT:    cmovbq %rcx, %rax
+; X64-NEXT:    movq 8(%rdi), %rcx
+; X64-NEXT:    lzcntq %rcx, %rdx
+; X64-NEXT:    lzcntq (%rdi), %rax
+; X64-NEXT:    addq $64, %rax
+; X64-NEXT:    testq %rcx, %rcx
+; X64-NEXT:    cmovneq %rdx, %rax
 ; X64-NEXT:    retq
 ;
 ; X32-NOLZCNT-LABEL: lzcnt128_no_lzcnt:
 ; X32-NOLZCNT:       # %bb.0:
 ; X32-NOLZCNT-NEXT:    movq 8(%edi), %rcx
-; X32-NOLZCNT-NEXT:    bsrq (%edi), %rdx
+; X32-NOLZCNT-NEXT:    bsrq %rcx, %rdx
 ; X32-NOLZCNT-NEXT:    xorq $63, %rdx
-; X32-NOLZCNT-NEXT:    orq $64, %rdx
-; X32-NOLZCNT-NEXT:    bsrq %rcx, %rax
+; X32-NOLZCNT-NEXT:    bsrq (%edi), %rax
 ; X32-NOLZCNT-NEXT:    xorq $63, %rax
+; X32-NOLZCNT-NEXT:    orq $64, %rax
 ; X32-NOLZCNT-NEXT:    testq %rcx, %rcx
-; X32-NOLZCNT-NEXT:    cmoveq %rdx, %rax
+; X32-NOLZCNT-NEXT:    cmovneq %rdx, %rax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: lzcnt128_no_lzcnt:
 ; X64-NOLZCNT:       # %bb.0:
 ; X64-NOLZCNT-NEXT:    movq 8(%rdi), %rcx
-; X64-NOLZCNT-NEXT:    bsrq (%rdi), %rdx
+; X64-NOLZCNT-NEXT:    bsrq %rcx, %rdx
 ; X64-NOLZCNT-NEXT:    xorq $63, %rdx
-; X64-NOLZCNT-NEXT:    orq $64, %rdx
-; X64-NOLZCNT-NEXT:    bsrq %rcx, %rax
+; X64-NOLZCNT-NEXT:    bsrq (%rdi), %rax
 ; X64-NOLZCNT-NEXT:    xorq $63, %rax
+; X64-NOLZCNT-NEXT:    orq $64, %rax
 ; X64-NOLZCNT-NEXT:    testq %rcx, %rcx
-; X64-NOLZCNT-NEXT:    cmoveq %rdx, %rax
+; X64-NOLZCNT-NEXT:    cmovneq %rdx, %rax
 ; X64-NOLZCNT-NEXT:    retq
   %a = load i128, ptr %p, align 8
   %cnt = tail call i128 @llvm.ctlz.i128(i128 %a, i1 true)
@@ -538,20 +542,22 @@ define i32 @clz_i128_issue32709_swap(i64 %x_lo, i64 %x_hi) {
 ;
 ; X32-LABEL: clz_i128_issue32709_swap:
 ; X32:       # %bb.0:
+; X32-NEXT:    lzcntq %rdi, %rax
 ; X32-NEXT:    lzcntq %rsi, %rcx
 ; X32-NEXT:    xorl %edx, %edx
-; X32-NEXT:    lzcntq %rdi, %rax
-; X32-NEXT:    cmovael %edx, %ecx
+; X32-NEXT:    testq %rdi, %rdi
+; X32-NEXT:    cmovnel %edx, %ecx
 ; X32-NEXT:    addl %ecx, %eax
 ; X32-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: clz_i128_issue32709_swap:
 ; X64:       # %bb.0:
+; X64-NEXT:    lzcntq %rdi, %rax
 ; X64-NEXT:    lzcntq %rsi, %rcx
 ; X64-NEXT:    xorl %edx, %edx
-; X64-NEXT:    lzcntq %rdi, %rax
-; X64-NEXT:    cmovael %edx, %ecx
+; X64-NEXT:    testq %rdi, %rdi
+; X64-NEXT:    cmovnel %edx, %ecx
 ; X64-NEXT:    addl %ecx, %eax
 ; X64-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NEXT:    retq
@@ -560,28 +566,28 @@ define i32 @clz_i128_issue32709_swap(i64 %x_lo, i64 %x_hi) {
 ; X32-NOLZCNT:       # %bb.0:
 ; X32-NOLZCNT-NEXT:    movl $127, %ecx
 ; X32-NOLZCNT-NEXT:    movl $127, %edx
-; X32-NOLZCNT-NEXT:    bsrq %rsi, %rdx
+; X32-NOLZCNT-NEXT:    bsrq %rdi, %rdx
 ; X32-NOLZCNT-NEXT:    xorl $63, %edx
-; X32-NOLZCNT-NEXT:    xorl %eax, %eax
-; X32-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X32-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X32-NOLZCNT-NEXT:    xorl $63, %ecx
+; X32-NOLZCNT-NEXT:    xorl %eax, %eax
 ; X32-NOLZCNT-NEXT:    testq %rdi, %rdi
-; X32-NOLZCNT-NEXT:    cmovel %edx, %eax
-; X32-NOLZCNT-NEXT:    addl %ecx, %eax
+; X32-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X32-NOLZCNT-NEXT:    addl %edx, %eax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: clz_i128_issue32709_swap:
 ; X64-NOLZCNT:       # %bb.0:
 ; X64-NOLZCNT-NEXT:    movl $127, %ecx
 ; X64-NOLZCNT-NEXT:    movl $127, %edx
-; X64-NOLZCNT-NEXT:    bsrq %rsi, %rdx
+; X64-NOLZCNT-NEXT:    bsrq %rdi, %rdx
 ; X64-NOLZCNT-NEXT:    xorl $63, %edx
-; X64-NOLZCNT-NEXT:    xorl %eax, %eax
-; X64-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X64-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X64-NOLZCNT-NEXT:    xorl $63, %ecx
+; X64-NOLZCNT-NEXT:    xorl %eax, %eax
 ; X64-NOLZCNT-NEXT:    testq %rdi, %rdi
-; X64-NOLZCNT-NEXT:    cmovel %edx, %eax
-; X64-NOLZCNT-NEXT:    addl %ecx, %eax
+; X64-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X64-NOLZCNT-NEXT:    addl %edx, %eax
 ; X64-NOLZCNT-NEXT:    retq
   %a = tail call i64 @llvm.ctlz.i64(i64 %x_lo, i1 false)
   %b = tail call i64 @llvm.ctlz.i64(i64 %x_hi, i1 false)
@@ -634,20 +640,22 @@ define i32 @clz_i128_issue32709_swap_cond_e(i64 %x_lo, i64 %x_hi) {
 ;
 ; X32-LABEL: clz_i128_issue32709_swap_cond_e:
 ; X32:       # %bb.0:
+; X32-NEXT:    lzcntq %rdi, %rax
 ; X32-NEXT:    lzcntq %rsi, %rcx
 ; X32-NEXT:    xorl %edx, %edx
-; X32-NEXT:    lzcntq %rdi, %rax
-; X32-NEXT:    cmovael %edx, %ecx
+; X32-NEXT:    testq %rdi, %rdi
+; X32-NEXT:    cmovnel %edx, %ecx
 ; X32-NEXT:    addl %ecx, %eax
 ; X32-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: clz_i128_issue32709_swap_cond_e:
 ; X64:       # %bb.0:
+; X64-NEXT:    lzcntq %rdi, %rax
 ; X64-NEXT:    lzcntq %rsi, %rcx
 ; X64-NEXT:    xorl %edx, %edx
-; X64-NEXT:    lzcntq %rdi, %rax
-; X64-NEXT:    cmovael %edx, %ecx
+; X64-NEXT:    testq %rdi, %rdi
+; X64-NEXT:    cmovnel %edx, %ecx
 ; X64-NEXT:    addl %ecx, %eax
 ; X64-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NEXT:    retq
@@ -656,28 +664,28 @@ define i32 @clz_i128_issue32709_swap_cond_e(i64 %x_lo, i64 %x_hi) {
 ; X32-NOLZCNT:       # %bb.0:
 ; X32-NOLZCNT-NEXT:    movl $127, %ecx
 ; X32-NOLZCNT-NEXT:    movl $127, %edx
-; X32-NOLZCNT-NEXT:    bsrq %rsi, %rdx
+; X32-NOLZCNT-NEXT:    bsrq %rdi, %rdx
 ; X32-NOLZCNT-NEXT:    xorl $63, %edx
-; X32-NOLZCNT-NEXT:    xorl %eax, %eax
-; X32-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X32-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X32-NOLZCNT-NEXT:    xorl $63, %ecx
+; X32-NOLZCNT-NEXT:    xorl %eax, %eax
 ; X32-NOLZCNT-NEXT:    testq %rdi, %rdi
-; X32-NOLZCNT-NEXT:    cmovel %edx, %eax
-; X32-NOLZCNT-NEXT:    addl %ecx, %eax
+; X32-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X32-NOLZCNT-NEXT:    addl %edx, %eax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: clz_i128_issue32709_swap_cond_e:
 ; X64-NOLZCNT:       # %bb.0:
 ; X64-NOLZCNT-NEXT:    movl $127, %ecx
 ; X64-NOLZCNT-NEXT:    movl $127, %edx
-; X64-NOLZCNT-NEXT:    bsrq %rsi, %rdx
+; X64-NOLZCNT-NEXT:    bsrq %rdi, %rdx
 ; X64-NOLZCNT-NEXT:    xorl $63, %edx
-; X64-NOLZCNT-NEXT:    xorl %eax, %eax
-; X64-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X64-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X64-NOLZCNT-NEXT:    xorl $63, %ecx
+; X64-NOLZCNT-NEXT:    xorl %eax, %eax
 ; X64-NOLZCNT-NEXT:    testq %rdi, %rdi
-; X64-NOLZCNT-NEXT:    cmovel %edx, %eax
-; X64-NOLZCNT-NEXT:    addl %ecx, %eax
+; X64-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X64-NOLZCNT-NEXT:    addl %edx, %eax
 ; X64-NOLZCNT-NEXT:    retq
   %a = tail call i64 @llvm.ctlz.i64(i64 %x_lo, i1 false)
   %b = tail call i64 @llvm.ctlz.i64(i64 %x_hi, i1 false)
@@ -734,43 +742,45 @@ define i32 @lzcnt128_reg_true(i128 %x) nounwind {
 ;
 ; X32-LABEL: lzcnt128_reg_true:
 ; X32:       # %bb.0:
-; X32-NEXT:    lzcntq %rdi, %rcx
-; X32-NEXT:    addl $64, %ecx
-; X32-NEXT:    lzcntq %rsi, %rax
-; X32-NEXT:    cmovbl %ecx, %eax
+; X32-NEXT:    lzcntq %rsi, %rcx
+; X32-NEXT:    lzcntq %rdi, %rax
+; X32-NEXT:    addl $64, %eax
+; X32-NEXT:    testq %rsi, %rsi
+; X32-NEXT:    cmovnel %ecx, %eax
 ; X32-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: lzcnt128_reg_true:
 ; X64:       # %bb.0:
-; X64-NEXT:    lzcntq %rdi, %rcx
-; X64-NEXT:    addl $64, %ecx
-; X64-NEXT:    lzcntq %rsi, %rax
-; X64-NEXT:    cmovbl %ecx, %eax
+; X64-NEXT:    lzcntq %rsi, %rcx
+; X64-NEXT:    lzcntq %rdi, %rax
+; X64-NEXT:    addl $64, %eax
+; X64-NEXT:    testq %rsi, %rsi
+; X64-NEXT:    cmovnel %ecx, %eax
 ; X64-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NEXT:    retq
 ;
 ; X32-NOLZCNT-LABEL: lzcnt128_reg_true:
 ; X32-NOLZCNT:       # %bb.0:
-; X32-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X32-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X32-NOLZCNT-NEXT:    xorl $63, %ecx
-; X32-NOLZCNT-NEXT:    orl $64, %ecx
-; X32-NOLZCNT-NEXT:    bsrq %rsi, %rax
+; X32-NOLZCNT-NEXT:    bsrq %rdi, %rax
 ; X32-NOLZCNT-NEXT:    xorl $63, %eax
+; X32-NOLZCNT-NEXT:    orl $64, %eax
 ; X32-NOLZCNT-NEXT:    testq %rsi, %rsi
-; X32-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X32-NOLZCNT-NEXT:    cmovnel %ecx, %eax
 ; X32-NOLZCNT-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: lzcnt128_reg_true:
 ; X64-NOLZCNT:       # %bb.0:
-; X64-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X64-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X64-NOLZCNT-NEXT:    xorl $63, %ecx
-; X64-NOLZCNT-NEXT:    orl $64, %ecx
-; X64-NOLZCNT-NEXT:    bsrq %rsi, %rax
+; X64-NOLZCNT-NEXT:    bsrq %rdi, %rax
 ; X64-NOLZCNT-NEXT:    xorl $63, %eax
+; X64-NOLZCNT-NEXT:    orl $64, %eax
 ; X64-NOLZCNT-NEXT:    testq %rsi, %rsi
-; X64-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X64-NOLZCNT-NEXT:    cmovnel %ecx, %eax
 ; X64-NOLZCNT-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NOLZCNT-NEXT:    retq
   %cnt = tail call i128 @llvm.ctlz.i128(i128 %x, i1 true)
@@ -823,45 +833,47 @@ define i32 @lzcnt128_reg_false(i128 %x) nounwind {
 ;
 ; X32-LABEL: lzcnt128_reg_false:
 ; X32:       # %bb.0:
-; X32-NEXT:    lzcntq %rdi, %rcx
-; X32-NEXT:    addl $64, %ecx
-; X32-NEXT:    lzcntq %rsi, %rax
-; X32-NEXT:    cmovbl %ecx, %eax
+; X32-NEXT:    lzcntq %rsi, %rcx
+; X32-NEXT:    lzcntq %rdi, %rax
+; X32-NEXT:    addl $64, %eax
+; X32-NEXT:    testq %rsi, %rsi
+; X32-NEXT:    cmovnel %ecx, %eax
 ; X32-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NEXT:    retq
 ;
 ; X64-LABEL: lzcnt128_reg_false:
 ; X64:       # %bb.0:
-; X64-NEXT:    lzcntq %rdi, %rcx
-; X64-NEXT:    addl $64, %ecx
-; X64-NEXT:    lzcntq %rsi, %rax
-; X64-NEXT:    cmovbl %ecx, %eax
+; X64-NEXT:    lzcntq %rsi, %rcx
+; X64-NEXT:    lzcntq %rdi, %rax
+; X64-NEXT:    addl $64, %eax
+; X64-NEXT:    testq %rsi, %rsi
+; X64-NEXT:    cmovnel %ecx, %eax
 ; X64-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NEXT:    retq
 ;
 ; X32-NOLZCNT-LABEL: lzcnt128_reg_false:
 ; X32-NOLZCNT:       # %bb.0:
-; X32-NOLZCNT-NEXT:    movl $127, %ecx
-; X32-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X32-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X32-NOLZCNT-NEXT:    xorl $63, %ecx
-; X32-NOLZCNT-NEXT:    addl $64, %ecx
-; X32-NOLZCNT-NEXT:    bsrq %rsi, %rax
+; X32-NOLZCNT-NEXT:    movl $127, %eax
+; X32-NOLZCNT-NEXT:    bsrq %rdi, %rax
 ; X32-NOLZCNT-NEXT:    xorl $63, %eax
+; X32-NOLZCNT-NEXT:    addl $64, %eax
 ; X32-NOLZCNT-NEXT:    testq %rsi, %rsi
-; X32-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X32-NOLZCNT-NEXT:    cmovnel %ecx, %eax
 ; X32-NOLZCNT-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X32-NOLZCNT-NEXT:    retq
 ;
 ; X64-NOLZCNT-LABEL: lzcnt128_reg_false:
 ; X64-NOLZCNT:       # %bb.0:
-; X64-NOLZCNT-NEXT:    movl $127, %ecx
-; X64-NOLZCNT-NEXT:    bsrq %rdi, %rcx
+; X64-NOLZCNT-NEXT:    bsrq %rsi, %rcx
 ; X64-NOLZCNT-NEXT:    xorl $63, %ecx
-; X64-NOLZCNT-NEXT:    addl $64, %ecx
-; X64-NOLZCNT-NEXT:    bsrq %rsi, %rax
+; X64-NOLZCNT-NEXT:    movl $127, %eax
+; X64-NOLZCNT-NEXT:    bsrq %rdi, %rax
 ; X64-NOLZCNT-NEXT:    xorl $63, %eax
+; X64-NOLZCNT-NEXT:    addl $64, %eax
 ; X64-NOLZCNT-NEXT:    testq %rsi, %rsi
-; X64-NOLZCNT-NEXT:    cmovel %ecx, %eax
+; X64-NOLZCNT-NEXT:    cmovnel %ecx, %eax
 ; X64-NOLZCNT-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NOLZCNT-NEXT:    retq
   %cnt = tail call i128 @llvm.ctlz.i128(i128 %x, i1 false)

@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "x86-eflags-reorder"
@@ -56,6 +57,7 @@ char X86EFlagsReorder::ID = 0;
 bool X86EFlagsReorder::runOnMachineFunction(MachineFunction &MF) {
   const X86InstrInfo *TII =
       static_cast<const X86InstrInfo *>(MF.getSubtarget().getInstrInfo());
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool Changed = false;
 
@@ -86,6 +88,26 @@ bool X86EFlagsReorder::runOnMachineFunction(MachineFunction &MF) {
         // Must be in the same basic block.
         if (ProdMI.getParent() != &MBB)
           continue;
+        // Only move producers that appear before the compare in block order.
+        auto It = std::next(ProdMI.getIterator());
+        while (It != CmpMI.getIterator() && It != MBB.end())
+          ++It;
+        if (It == MBB.end())
+          continue;
+
+        // Bail out if any intervening instruction reads or clobbers EFLAGS.
+        bool HasEFLAGSBarrier = false;
+        for (auto ScanIt = std::next(ProdMI.getIterator());
+             ScanIt != CmpMI.getIterator(); ++ScanIt) {
+          if (ScanIt->readsRegister(X86::EFLAGS, TRI) ||
+              ScanIt->modifiesRegister(X86::EFLAGS, TRI)) {
+            HasEFLAGSBarrier = true;
+            break;
+          }
+        }
+        if (HasEFLAGSBarrier)
+          continue;
+
         // Collect ProdMI and any instructions between it and CmpMI that
         // transitively depend on ProdMI's output registers. These must move
         // together to preserve def-use order (e.g. a COPY of the LZCNT result
