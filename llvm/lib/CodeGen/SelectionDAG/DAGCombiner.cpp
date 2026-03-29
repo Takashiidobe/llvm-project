@@ -5585,6 +5585,10 @@ SDValue DAGCombiner::visitMULHS(SDNode *N) {
     unsigned SimpleSize = Simple.getSizeInBits();
     EVT NewVT = EVT::getIntegerVT(*DAG.getContext(), SimpleSize*2);
     if (TLI.isOperationLegal(ISD::MUL, NewVT)) {
+      // If SMUL_LOHI is legal, legalization will lower MULHS to SMUL_LOHI.
+      // Don't widen here or we create a combine loop with combineShiftToMULH.
+      if (TLI.isOperationLegalOrCustom(ISD::SMUL_LOHI, VT))
+        return SDValue();
       N0 = DAG.getNode(ISD::SIGN_EXTEND, DL, NewVT, N0);
       N1 = DAG.getNode(ISD::SIGN_EXTEND, DL, NewVT, N1);
       N1 = DAG.getNode(ISD::MUL, DL, NewVT, N0, N1);
@@ -5656,6 +5660,10 @@ SDValue DAGCombiner::visitMULHU(SDNode *N) {
     unsigned SimpleSize = Simple.getSizeInBits();
     EVT NewVT = EVT::getIntegerVT(*DAG.getContext(), SimpleSize*2);
     if (TLI.isOperationLegal(ISD::MUL, NewVT)) {
+      // If UMUL_LOHI is legal, legalization will lower MULHU to UMUL_LOHI.
+      // Don't widen here or we create a combine loop with combineShiftToMULH.
+      if (TLI.isOperationLegalOrCustom(ISD::UMUL_LOHI, VT))
+        return SDValue();
       N0 = DAG.getNode(ISD::ZERO_EXTEND, DL, NewVT, N0);
       N1 = DAG.getNode(ISD::ZERO_EXTEND, DL, NewVT, N1);
       N1 = DAG.getNode(ISD::MUL, DL, NewVT, N0, N1);
@@ -5940,6 +5948,11 @@ SDValue DAGCombiner::visitSMUL_LOHI(SDNode *N) {
     unsigned SimpleSize = Simple.getSizeInBits();
     EVT NewVT = EVT::getIntegerVT(*DAG.getContext(), SimpleSize*2);
     if (TLI.isOperationLegal(ISD::MUL, NewVT)) {
+      // Don't widen when SMUL_LOHI is legal at VT: the target can handle it
+      // directly (e.g. imull on x86-64 for i32), and widening would cause an
+      // infinite combine loop with combineShiftToMULH.
+      if (TLI.isOperationLegal(ISD::SMUL_LOHI, VT))
+        return SDValue();
       SDValue Lo = DAG.getNode(ISD::SIGN_EXTEND, DL, NewVT, N0);
       SDValue Hi = DAG.getNode(ISD::SIGN_EXTEND, DL, NewVT, N1);
       Lo = DAG.getNode(ISD::MUL, DL, NewVT, Lo, Hi);
@@ -5993,6 +6006,11 @@ SDValue DAGCombiner::visitUMUL_LOHI(SDNode *N) {
     unsigned SimpleSize = Simple.getSizeInBits();
     EVT NewVT = EVT::getIntegerVT(*DAG.getContext(), SimpleSize*2);
     if (TLI.isOperationLegal(ISD::MUL, NewVT)) {
+      // Don't widen when UMUL_LOHI is legal at VT: the target can handle it
+      // directly (e.g. mull on x86-64 for i32), and widening would cause an
+      // infinite combine loop with combineShiftToMULH.
+      if (TLI.isOperationLegal(ISD::UMUL_LOHI, VT))
+        return SDValue();
       SDValue Lo = DAG.getNode(ISD::ZERO_EXTEND, DL, NewVT, N0);
       SDValue Hi = DAG.getNode(ISD::ZERO_EXTEND, DL, NewVT, N1);
       Lo = DAG.getNode(ISD::MUL, DL, NewVT, Lo, Hi);
@@ -11104,8 +11122,14 @@ static SDValue combineShiftToMULH(SDNode *N, const SDLoc &DL, SelectionDAG &DAG,
     if (TransformVT.getScalarType() != NarrowVT.getScalarType())
       return SDValue();
   }
-  if (!TLI.isOperationLegalOrCustom(MulhOpcode, TransformVT))
-    return SDValue();
+  if (!TLI.isOperationLegalOrCustom(MulhOpcode, TransformVT)) {
+    // Also allow the combine when MULH is Expand but the corresponding
+    // MUL_LOHI is legal/custom: legalization will lower MULH -> MUL_LOHI.
+    if (TLI.getOperationAction(MulhOpcode, TransformVT) !=
+            TargetLowering::Expand ||
+        !TLI.isOperationLegalOrCustom(MulLoHiOp, NarrowVT))
+      return SDValue();
+  }
 
   SDValue Result =
       DAG.getNode(MulhOpcode, DL, NarrowVT, LeftOp.getOperand(0), MulhRightOp);
