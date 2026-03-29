@@ -240,7 +240,7 @@ define i32 @popcount64_mask(i64 %x) {
   ret i32 %13
 }
 
-; HD shift-add variant for i32:
+; shift-add variant for i32:
 ;   x -= (x >> 1) & 0x55555555;
 ;   x  = (x & 0x33333333) + ((x >> 2) & 0x33333333);
 ;   x  = (x + (x >> 4)) & 0x0F0F0F0F;
@@ -270,7 +270,7 @@ define i32 @popcount32_hd(i32 %x) {
   ret i32 %r
 }
 
-; HD shift-add variant for i64
+; shift-add variant for i64
 define i32 @popcount64_hd(i64 %x) {
 ; CHECK-LABEL: @popcount64_hd(
 ; CHECK-NEXT:    [[TMP:%.*]] = call i64 @llvm.ctpop.i64(i64 [[X:%.*]])
@@ -298,17 +298,18 @@ define i32 @popcount64_hd(i64 %x) {
   ret i32 %s
 }
 
-; HD variant with a masked input (partial popcount — counts bits in masked positions).
-; The 0x55 mask for step 1 is relaxed because the input is already masked.
+; variant with a masked input (partial popcount case).
+; input is masked to the upper 16 bits, so the step-1 mask 0x55550000 is a proper
+; subset of 0x55555555; MaskedValueIsZero confirms the lower bits of (mask>>1) are 0.
 define i32 @popcount32_hd_mask(i32 %x) {
 ; CHECK-LABEL: @popcount32_hd_mask(
-; CHECK-NEXT:    [[MASK:%.*]] = and i32 [[X:%.*]], -1431655766
+; CHECK-NEXT:    [[MASK:%.*]] = and i32 [[X:%.*]], -65536
 ; CHECK-NEXT:    [[TMP:%.*]] = call i32 @llvm.ctpop.i32(i32 [[MASK]])
 ; CHECK-NEXT:    ret i32 [[TMP]]
 ;
-  %mask = and i32 %x, -1431655766    ; 0xAAAAAAAA — odd bit positions only
+  %mask = and i32 %x, -65536             ; 0xFFFF0000 - upper 16 bits only
   %a = lshr i32 %mask, 1
-  %b = and i32 %a, 715827882         ; 0x2AAAAAAA (= 0x55555555 & (0xAAAAAAAA >> 1))
+  %b = and i32 %a, 1431633920            ; 0x55550000 is a half mask of 0x55555555 
   %c = sub i32 %mask, %b
   %d = and i32 %c, 858993459
   %e = lshr i32 %c, 2
@@ -325,12 +326,26 @@ define i32 @popcount32_hd_mask(i32 %x) {
   ret i32 %r
 }
 
-; Negative: final mask is too narrow to hold all popcount values (0x1F can only
-; hold 0..31, but an i32 can have 32 set bits). Must NOT fold.
+; negative: final mask is too narrow to hold all popcount values (0x1F can only
+; hold 0..31, but an i32 can have 32 set bits). 
 define i32 @popcount32_hd_narrow_mask(i32 %x) {
 ; CHECK-LABEL: @popcount32_hd_narrow_mask(
-; CHECK-NOT:     llvm.ctpop
-; CHECK:         ret i32
+; CHECK-NEXT:    [[A:%.*]] = lshr i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[A]], 1431655765
+; CHECK-NEXT:    [[C:%.*]] = sub i32 [[X]], [[B]]
+; CHECK-NEXT:    [[D:%.*]] = and i32 [[C]], 858993459
+; CHECK-NEXT:    [[E:%.*]] = lshr i32 [[C]], 2
+; CHECK-NEXT:    [[F:%.*]] = and i32 [[E]], 858993459
+; CHECK-NEXT:    [[G:%.*]] = add i32 [[D]], [[F]]
+; CHECK-NEXT:    [[H:%.*]] = lshr i32 [[G]], 4
+; CHECK-NEXT:    [[I:%.*]] = add i32 [[G]], [[H]]
+; CHECK-NEXT:    [[J:%.*]] = and i32 [[I]], 252645135
+; CHECK-NEXT:    [[K:%.*]] = lshr i32 [[J]], 8
+; CHECK-NEXT:    [[L:%.*]] = add i32 [[J]], [[K]]
+; CHECK-NEXT:    [[M:%.*]] = lshr i32 [[L]], 16
+; CHECK-NEXT:    [[N:%.*]] = add i32 [[L]], [[M]]
+; CHECK-NEXT:    [[R:%.*]] = and i32 [[N]], 31
+; CHECK-NEXT:    ret i32 [[R]]
 ;
   %a = lshr i32 %x, 1
   %b = and i32 %a, 1431655765

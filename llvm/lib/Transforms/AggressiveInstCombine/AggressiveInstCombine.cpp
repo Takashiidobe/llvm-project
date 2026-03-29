@@ -313,8 +313,21 @@ static bool foldAnyOrAllBitsSet(Instruction &I) {
 //   i = ((i + (i >> 4)) & 0x0F0F0F0F);
 //   return (i * 0x01010101) >> 24;
 // }
+//
+// Also recognizes the Hacker's Delight shift-add variant that avoids the
+// multiply and extracts the count from the low bits:
+//
+// int popcount(unsigned int i) {
+//   i = i - ((i >> 1) & 0x55555555);
+//   i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+//   i = (i + (i >> 4)) & 0x0F0F0F0F;
+//   i = i + (i >> 8);
+//   i = i + (i >> 16);
+//   return i & 0x3F;
+// }
 static bool tryToRecognizePopCount(Instruction &I) {
-  if (I.getOpcode() != Instruction::LShr)
+  if (I.getOpcode() != Instruction::LShr &&
+      I.getOpcode() != Instruction::And)
     return false;
 
   Type *Ty = I.getType();
@@ -329,58 +342,103 @@ static bool tryToRecognizePopCount(Instruction &I) {
   APInt Mask55 = APInt::getSplat(Len, APInt(8, 0x55));
   APInt Mask33 = APInt::getSplat(Len, APInt(8, 0x33));
   APInt Mask0F = APInt::getSplat(Len, APInt(8, 0x0F));
-  APInt Mask01 = APInt::getSplat(Len, APInt(8, 0x01));
-  APInt MaskShift = APInt(Len, Len - 8);
 
-  Value *Op0 = I.getOperand(0);
-  Value *Op1 = I.getOperand(1);
-  Value *MulOp0;
-  // Matching "(i * 0x01010101...) >> 24".
-  if ((match(Op0, m_Mul(m_Value(MulOp0), m_SpecificInt(Mask01)))) &&
-      match(Op1, m_SpecificInt(MaskShift))) {
+  // Shared matching of steps 1–3 given the result of step 3, and replacement
+  // with ctpop when a match is found.
+  //
+  // step3 = ((AndOp0 + (AndOp0 >> 2)) & 0x33...) + ... i.e. the result of
+  // ((i + (i >> 4)) & 0x0F0F0F0F).  We receive this value as Step3Val.
+  auto TryMatchStep3AndReplace = [&](Value *Step3Val) -> bool {
     Value *ShiftOp0;
     // Matching "((i + (i >> 4)) & 0x0F0F0F0F...)".
-    if (match(MulOp0, m_And(m_c_Add(m_LShr(m_Value(ShiftOp0), m_SpecificInt(4)),
-                                    m_Deferred(ShiftOp0)),
-                            m_SpecificInt(Mask0F)))) {
-      Value *AndOp0;
-      // Matching "(i & 0x33333333...) + ((i >> 2) & 0x33333333...)".
-      if (match(ShiftOp0,
-                m_c_Add(m_And(m_Value(AndOp0), m_SpecificInt(Mask33)),
-                        m_And(m_LShr(m_Deferred(AndOp0), m_SpecificInt(2)),
-                              m_SpecificInt(Mask33))))) {
-        Value *Root, *SubOp1;
-        // Matching "i - ((i >> 1) & 0x55555555...)".
-        const APInt *AndMask;
-        if (match(AndOp0, m_Sub(m_Value(Root), m_Value(SubOp1))) &&
-            match(SubOp1, m_And(m_LShr(m_Specific(Root), m_SpecificInt(1)),
-                                m_APInt(AndMask)))) {
-          auto CheckAndMask = [&]() {
-            if (*AndMask == Mask55)
-              return true;
+    if (!match(Step3Val, m_And(m_c_Add(m_LShr(m_Value(ShiftOp0), m_SpecificInt(4)),
+                                       m_Deferred(ShiftOp0)),
+                               m_SpecificInt(Mask0F))))
+      return false;
 
-            // Exact match failed, see if any bits are known to be 0 where we
-            // expect a 1 in the mask.
-            if (!AndMask->isSubsetOf(Mask55))
-              return false;
+    Value *AndOp0;
+    // Matching "(i & 0x33333333...) + ((i >> 2) & 0x33333333...)".
+    if (!match(ShiftOp0,
+               m_c_Add(m_And(m_Value(AndOp0), m_SpecificInt(Mask33)),
+                       m_And(m_LShr(m_Deferred(AndOp0), m_SpecificInt(2)),
+                             m_SpecificInt(Mask33)))))
+      return false;
 
-            APInt NeededMask = Mask55 & ~*AndMask;
-            return MaskedValueIsZero(cast<Instruction>(SubOp1)->getOperand(0),
-                                     NeededMask,
-                                     SimplifyQuery(I.getDataLayout()));
-          };
+    Value *Root, *SubOp1;
+    // Matching "i - ((i >> 1) & 0x55555555...)".
+    const APInt *AndMask;
+    if (!(match(AndOp0, m_Sub(m_Value(Root), m_Value(SubOp1))) &&
+          match(SubOp1, m_And(m_LShr(m_Specific(Root), m_SpecificInt(1)),
+                              m_APInt(AndMask)))))
+      return false;
 
-          if (CheckAndMask()) {
-            LLVM_DEBUG(dbgs() << "Recognized popcount intrinsic\n");
-            IRBuilder<> Builder(&I);
-            I.replaceAllUsesWith(
-                Builder.CreateIntrinsic(Intrinsic::ctpop, I.getType(), {Root}));
-            ++NumPopCountRecognized;
-            return true;
-          }
-        }
-      }
+    auto CheckAndMask = [&]() {
+      if (*AndMask == Mask55)
+        return true;
+
+      // Exact match failed, see if any bits are known to be 0 where we
+      // expect a 1 in the mask.
+      if (!AndMask->isSubsetOf(Mask55))
+        return false;
+
+      APInt NeededMask = Mask55 & ~*AndMask;
+      return MaskedValueIsZero(cast<Instruction>(SubOp1)->getOperand(0),
+                               NeededMask, SimplifyQuery(I.getDataLayout()));
+    };
+
+    if (!CheckAndMask())
+      return false;
+
+    LLVM_DEBUG(dbgs() << "Recognized popcount intrinsic\n");
+    IRBuilder<> Builder(&I);
+    I.replaceAllUsesWith(
+        Builder.CreateIntrinsic(Intrinsic::ctpop, I.getType(), {Root}));
+    ++NumPopCountRecognized;
+    return true;
+  };
+
+  // Path 1: multiply form — "(i * 0x01010101...) >> 24".
+  if (I.getOpcode() == Instruction::LShr) {
+    APInt Mask01 = APInt::getSplat(Len, APInt(8, 0x01));
+    APInt MaskShift = APInt(Len, Len - 8);
+
+    Value *Op0 = I.getOperand(0);
+    Value *Op1 = I.getOperand(1);
+    Value *MulOp0;
+    if (match(Op0, m_Mul(m_Value(MulOp0), m_SpecificInt(Mask01))) &&
+        match(Op1, m_SpecificInt(MaskShift)))
+      return TryMatchStep3AndReplace(MulOp0);
+  }
+
+  // Path 2: shift-add variant — "i + (i >> 8); i + (i >> 16); i & 0x3F".
+  // The final AND mask must be wide enough to hold all popcount values 0..Len.
+  if (I.getOpcode() == Instruction::And) {
+    const APInt *FinalMask;
+    Value *Cur;
+    if (!match(&I, m_c_And(m_Value(Cur), m_APInt(FinalMask))))
+      return false;
+
+    // Accept any contiguous low-bit mask that covers ceil(log2(Len+1)) bits.
+    unsigned MinFinalBits = Log2_32_Ceil(Len + 1);
+    if (!FinalMask->isMask() || FinalMask->countTrailingOnes() < MinFinalBits)
+      return false;
+
+    // Peel the outer shift-add layers (shifts Len/2, Len/4, …, down to 16).
+    for (unsigned Shift = Len / 2; Shift >= 16; Shift /= 2) {
+      Value *Prev;
+      if (!match(Cur, m_c_Add(m_LShr(m_Value(Prev), m_SpecificInt(Shift)),
+                               m_Deferred(Prev))))
+        return false;
+      Cur = Prev;
     }
+
+    // Peel the shift=8 layer; what remains should be the step-3 result.
+    Value *Step3Val;
+    if (!match(Cur, m_c_Add(m_LShr(m_Value(Step3Val), m_SpecificInt(8)),
+                             m_Deferred(Step3Val))))
+      return false;
+
+    return TryMatchStep3AndReplace(Step3Val);
   }
 
   return false;
