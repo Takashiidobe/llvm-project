@@ -12,12 +12,9 @@ declare void @use128(i128)
 ; Basic case: i32 dividend, divisor 7, result widened to i64.
 define i64 @divceil_i32_to_i64(i32 %x) {
 ; CHECK-LABEL: @divceil_i32_to_i64(
-; CHECK-NEXT:    [[D:%.*]] = udiv i32 [[X:%.*]], 7
-; CHECK-NEXT:    [[R:%.*]] = urem i32 [[X]], 7
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i32 [[R]], 0
-; CHECK-NEXT:    [[INC:%.*]] = zext i1 [[CMP]] to i32
-; CHECK-NEXT:    [[SUM:%.*]] = add nuw nsw i32 [[D]], [[INC]]
-; CHECK-NEXT:    [[RES:%.*]] = zext nneg i32 [[SUM]] to i64
+; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[X:%.*]] to i64
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw nsw i64 [[TMP1]], 6
+; CHECK-NEXT:    [[RES:%.*]] = udiv i64 [[TMP2]], 7
 ; CHECK-NEXT:    ret i64 [[RES]]
 ;
   %d   = udiv i32 %x, 7
@@ -32,12 +29,9 @@ define i64 @divceil_i32_to_i64(i32 %x) {
 ; Commuted: inc on the left of the add.
 define i64 @divceil_i32_to_i64_commuted(i32 %x) {
 ; CHECK-LABEL: @divceil_i32_to_i64_commuted(
-; CHECK-NEXT:    [[D:%.*]] = udiv i32 [[X:%.*]], 7
-; CHECK-NEXT:    [[R:%.*]] = urem i32 [[X]], 7
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i32 [[R]], 0
-; CHECK-NEXT:    [[INC:%.*]] = zext i1 [[CMP]] to i32
-; CHECK-NEXT:    [[SUM:%.*]] = add nuw nsw i32 [[D]], [[INC]]
-; CHECK-NEXT:    [[RES:%.*]] = zext nneg i32 [[SUM]] to i64
+; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[X:%.*]] to i64
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw nsw i64 [[TMP1]], 6
+; CHECK-NEXT:    [[RES:%.*]] = udiv i64 [[TMP2]], 7
 ; CHECK-NEXT:    ret i64 [[RES]]
 ;
   %d   = udiv i32 %x, 7

@@ -1629,6 +1629,35 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &Zext) {
     }
   }
 
+  // Fold the div_ceil idiom:
+  //   zext(add nuw(udiv(A, C), zext(icmp ne(urem(A, C), 0))))
+  //     -> udiv(zext(A) + C-1, C)   [in the wider type]
+  // This is the form emitted by Rust for unsigned div_ceil. Computing in the
+  // wider type avoids overflow: max(zext(A)) + (C-1) < 2^(wide width).
+  {
+    Value *A;
+    const APInt *C1, *C2;
+    CmpPredicate Pred;
+
+    auto UDivPat = m_OneUse(m_UDiv(m_Value(A), m_APInt(C1)));
+    auto URemPat = m_OneUse(m_URem(m_Deferred(A), m_APInt(C2)));
+    auto ICmpPat = m_OneUse(m_ICmp(Pred, URemPat, m_Zero()));
+    auto IncPat = m_OneUse(m_ZExt(ICmpPat));
+    auto AddPat = m_OneUse(m_c_Add(UDivPat, IncPat));
+
+    if (match(Src, AddPat) && Pred == ICmpInst::ICMP_NE && *C1 == *C2 &&
+        C1->ugt(1)) {
+      unsigned WideWidth = cast<IntegerType>(DestTy)->getBitWidth();
+      APInt CWide = C1->zext(WideWidth);
+      Value *AWide = Builder.CreateZExt(A, DestTy);
+      Value *Biased =
+          Builder.CreateAdd(AWide, ConstantInt::get(DestTy, CWide - 1),
+                            "", /*HasNUW=*/true);
+      Value *Div = Builder.CreateUDiv(Biased, ConstantInt::get(DestTy, CWide));
+      return replaceInstUsesWith(Zext, Div);
+    }
+  }
+
   return nullptr;
 }
 
