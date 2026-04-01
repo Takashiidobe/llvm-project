@@ -2,9 +2,9 @@
 ; RUN: opt < %s -passes=instcombine -S | FileCheck %s
 
 ; Fold the div_ceil idiom:
-;   add(zext(udiv(A, C)), zext(icmp ne(urem(A, C), 0)))
-;     -> zext(udiv(add nuw(A, C - 1), C))
-; when A + (C-1) is provably non-wrapping.
+;   add(zext(udiv(X, Y)), zext(icmp ne(urem(X, Y), 0)))
+;     -> zext(udiv(add nuw(X, Y - 1), Y))
+; when X + (Y-1) is provably non-wrapping (via range info on both X and Y).
 
 declare void @use(i64)
 
@@ -82,5 +82,100 @@ define i64 @divceil_i8_udiv_multiuse(i8 range(i8 1, 33) %bits) {
   %round = zext i1 %cond to i64
   %result = add i64 %d.ext, %round
   call void @use(i64 %d.ext)
+  ret i64 %result
+}
+
+; Variable divisor: X in [0,100] and Y in [1,11], so max X+(Y-1) = 100+10 = 110 <= 255.
+define i64 @divceil_i8_var_divisor(i8 range(i8 0, 101) %x, i8 range(i8 1, 11) %y) {
+; CHECK-LABEL: @divceil_i8_var_divisor(
+; CHECK-NEXT:    [[TMP1:%.*]] = add nsw i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw i8 [[X:%.*]], [[TMP1]]
+; CHECK-NEXT:    [[TMP3:%.*]] = udiv i8 [[TMP2]], [[Y]]
+; CHECK-NEXT:    [[RESULT:%.*]] = zext i8 [[TMP3]] to i64
+; CHECK-NEXT:    ret i64 [[RESULT]]
+;
+  %d = udiv i8 %x, %y
+  %d.ext = zext i8 %d to i64
+  %r = urem i8 %x, %y
+  %cond = icmp ne i8 %r, 0
+  %round = zext i1 %cond to i64
+  %result = add i64 %d.ext, %round
+  ret i64 %result
+}
+
+; Commuted: zext(icmp) on the left, zext(udiv) on the right.
+define i64 @divceil_i8_var_divisor_commuted(i8 range(i8 0, 101) %x, i8 range(i8 1, 11) %y) {
+; CHECK-LABEL: @divceil_i8_var_divisor_commuted(
+; CHECK-NEXT:    [[TMP1:%.*]] = add nsw i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw i8 [[X:%.*]], [[TMP1]]
+; CHECK-NEXT:    [[TMP3:%.*]] = udiv i8 [[TMP2]], [[Y]]
+; CHECK-NEXT:    [[RESULT:%.*]] = zext i8 [[TMP3]] to i64
+; CHECK-NEXT:    ret i64 [[RESULT]]
+;
+  %d = udiv i8 %x, %y
+  %d.ext = zext i8 %d to i64
+  %r = urem i8 %x, %y
+  %cond = icmp ne i8 %r, 0
+  %round = zext i1 %cond to i64
+  %result = add i64 %round, %d.ext
+  ret i64 %result
+}
+
+; Variable divisor with i32 inner type: X in [0,100], Y in [2,9].
+; Max X+(Y-1) = 100+8 = 108 <= UINT32_MAX.
+define i64 @divceil_i32_var_divisor(i32 range(i32 0, 101) %x, i32 range(i32 2, 9) %y) {
+; CHECK-LABEL: @divceil_i32_var_divisor(
+; CHECK-NEXT:    [[TMP1:%.*]] = add nsw i32 [[Y:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw nsw i32 [[X:%.*]], [[TMP1]]
+; CHECK-NEXT:    [[TMP3:%.*]] = udiv i32 [[TMP2]], [[Y]]
+; CHECK-NEXT:    [[RESULT:%.*]] = zext i32 [[TMP3]] to i64
+; CHECK-NEXT:    ret i64 [[RESULT]]
+;
+  %d = udiv i32 %x, %y
+  %d.ext = zext i32 %d to i64
+  %r = urem i32 %x, %y
+  %cond = icmp ne i32 %r, 0
+  %round = zext i1 %cond to i64
+  %result = add i64 %d.ext, %round
+  ret i64 %result
+}
+
+; Negative: Y unbounded -> max Y = 255, max X+(Y-1) = 100+254 = 354 > 255, overflows i8.
+define i64 @divceil_i8_var_divisor_y_unbounded(i8 range(i8 0, 101) %x, i8 %y) {
+; CHECK-LABEL: @divceil_i8_var_divisor_y_unbounded(
+; CHECK-NEXT:    [[D:%.*]] = udiv i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[D_EXT:%.*]] = zext nneg i8 [[D]] to i64
+; CHECK-NEXT:    [[R:%.*]] = urem i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[COND:%.*]] = icmp ne i8 [[R]], 0
+; CHECK-NEXT:    [[ROUND:%.*]] = zext i1 [[COND]] to i64
+; CHECK-NEXT:    [[RESULT:%.*]] = add nuw nsw i64 [[D_EXT]], [[ROUND]]
+; CHECK-NEXT:    ret i64 [[RESULT]]
+;
+  %d = udiv i8 %x, %y
+  %d.ext = zext i8 %d to i64
+  %r = urem i8 %x, %y
+  %cond = icmp ne i8 %r, 0
+  %round = zext i1 %cond to i64
+  %result = add i64 %d.ext, %round
+  ret i64 %result
+}
+
+; Negative: X unbounded -> max X = 255, 255+(Y-1) overflows i8 even with bounded Y.
+define i64 @divceil_i8_var_divisor_x_unbounded(i8 %x, i8 range(i8 1, 11) %y) {
+; CHECK-LABEL: @divceil_i8_var_divisor_x_unbounded(
+; CHECK-NEXT:    [[D:%.*]] = udiv i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[D_EXT:%.*]] = zext i8 [[D]] to i64
+; CHECK-NEXT:    [[R:%.*]] = urem i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[COND:%.*]] = icmp ne i8 [[R]], 0
+; CHECK-NEXT:    [[ROUND:%.*]] = zext i1 [[COND]] to i64
+; CHECK-NEXT:    [[RESULT:%.*]] = add nuw nsw i64 [[D_EXT]], [[ROUND]]
+; CHECK-NEXT:    ret i64 [[RESULT]]
+;
+  %d = udiv i8 %x, %y
+  %d.ext = zext i8 %d to i64
+  %r = urem i8 %x, %y
+  %cond = icmp ne i8 %r, 0
+  %round = zext i1 %cond to i64
+  %result = add i64 %d.ext, %round
   ret i64 %result
 }

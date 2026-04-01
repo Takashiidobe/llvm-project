@@ -1524,36 +1524,48 @@ static Instruction *foldBoxMultiply(BinaryOperator &I) {
 }
 
 // Fold the div_ceil idiom:
-//   add(zext(udiv(A, C)), zext(icmp ne(urem(A, C), 0)))
-//     -> zext(udiv(add nuw(A, C - 1), C))
-// The quotient-plus-round-up pattern is equivalent to a ceiling division,
-// which lets the backend strength-reduce the division by a constant.
+//   add(zext(udiv(X, Y)), zext(icmp ne(urem(X, Y), 0)))
+//     -> zext(udiv(add nuw(X, Y - 1), Y))
+// The quotient-plus-round-up pattern is equivalent to a ceiling division.
+// Valid when X + (Y-1) is provably non-wrapping, checked via ConstantRange
+// on both operands (range attributes, assume, etc.).
 Instruction *InstCombinerImpl::foldDivCeil(BinaryOperator &I) {
-  Value *A;
-  const APInt *C1, *C2;
+  Value *X, *X2, *Y, *Y2;
   CmpPredicate Pred;
 
-  auto UDivPat = m_OneUse(m_UDiv(m_Value(A), m_APInt(C1)));
+  auto UDivPat = m_OneUse(m_UDiv(m_Value(X), m_Value(Y)));
   auto LHS = m_OneUse(m_ZExt(UDivPat));
 
-  auto URemPat = m_OneUse(m_URem(m_Deferred(A), m_APInt(C2)));
+  auto URemPat = m_OneUse(m_URem(m_Value(X2), m_Value(Y2)));
   auto ICmpPat = m_OneUse(m_ICmp(Pred, URemPat, m_Zero()));
   auto RHS = m_ZExt(ICmpPat);
 
   if (!match(&I, m_c_Add(LHS, RHS)) || Pred != ICmpInst::ICMP_NE ||
-      *C1 != *C2 || !C1->ugt(1))
+      X != X2 || Y != Y2)
     return nullptr;
 
-  // A + (C-1) must not overflow unsigned. Check via KnownBits: if the max
-  // possible value of A satisfies MaxA <= UINT_MAX - (C-1), it's safe.
-  KnownBits Known = computeKnownBits(A, &I);
-  APInt MaxA = Known.getMaxValue();
-  if (!MaxA.ule(APInt::getMaxValue(MaxA.getBitWidth()) - (*C1 - 1)))
+  // X + (Y-1) must not overflow unsigned.
+  // Use ConstantRange rather than KnownBits: KnownBits can only derive bounds
+  // from known-zero high bits, so it loses range info for near-max values
+  // (e.g. an assume of "x < UINT_MAX-5" on a 32-bit value leaves no
+  // universally-zero bits and getMaxValue() returns UINT_MAX).
+  // ConstantRange tracks the full [lo, hi) interval and gives a tight max.
+  // Note: computeConstantRangeIncludingKnownBits does not forward AC/DT to
+  // computeConstantRange, so it won't pick up llvm.assume; call the full form.
+  ConstantRange CRX = computeConstantRange(X, /*ForSigned=*/false,
+                                           /*UseInstrInfo=*/true, &AC, &I, &DT);
+  ConstantRange CRY = computeConstantRange(Y, /*ForSigned=*/false,
+                                           /*UseInstrInfo=*/true, &AC, &I, &DT);
+  APInt MaxX = CRX.getUnsignedMax();
+  APInt MaxY = CRY.getUnsignedMax();
+  unsigned BitWidth = MaxX.getBitWidth();
+  // MaxX + (MaxY - 1) <= UINT_MAX  <==>  MaxX <= UINT_MAX - (MaxY - 1)
+  if (MaxX.ugt(APInt::getMaxValue(BitWidth) - (MaxY - 1)))
     return nullptr;
 
-  Value *CMinusOne = ConstantInt::get(A->getType(), *C1 - 1);
-  Value *NUWAdd = Builder.CreateAdd(A, CMinusOne, "", /*HasNUW=*/true);
-  Value *Div = Builder.CreateUDiv(NUWAdd, ConstantInt::get(A->getType(), *C1));
+  Value *YMinusOne = Builder.CreateSub(Y, ConstantInt::get(Y->getType(), 1));
+  Value *NUWAdd = Builder.CreateAdd(X, YMinusOne, "", /*HasNUW=*/true);
+  Value *Div = Builder.CreateUDiv(NUWAdd, Y);
   return new ZExtInst(Div, I.getType());
 }
 
