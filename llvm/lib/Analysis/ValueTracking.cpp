@@ -10274,8 +10274,10 @@ static ConstantRange getRangeForIntrinsic(const IntrinsicInst &II,
   return ConstantRange::getFull(Width);
 }
 
-static ConstantRange getRangeForSelectPattern(const SelectInst &SI,
-                                              const InstrInfoQuery &IIQ) {
+static ConstantRange
+getRangeForSelectPattern(const SelectInst &SI, const InstrInfoQuery &IIQ,
+                         AssumptionCache *AC, const Instruction *CtxI,
+                         const DominatorTree *DT, unsigned Depth) {
   unsigned BitWidth = SI.getType()->getScalarSizeInBits();
   const Value *LHS = nullptr, *RHS = nullptr;
   SelectPatternResult R = matchSelectPattern(&SI, LHS, RHS);
@@ -10301,21 +10303,35 @@ static ConstantRange getRangeForSelectPattern(const SelectInst &SI,
                                       APInt(BitWidth, 1));
   }
 
-  const APInt *C;
-  if (!match(LHS, m_APInt(C)) && !match(RHS, m_APInt(C)))
-    return ConstantRange::getFull(BitWidth);
-
   switch (R.Flavor) {
-  case SPF_UMIN:
-    return ConstantRange::getNonEmpty(APInt::getZero(BitWidth), *C + 1);
-  case SPF_UMAX:
-    return ConstantRange::getNonEmpty(*C, APInt::getZero(BitWidth));
-  case SPF_SMIN:
-    return ConstantRange::getNonEmpty(APInt::getSignedMinValue(BitWidth),
-                                      *C + 1);
-  case SPF_SMAX:
-    return ConstantRange::getNonEmpty(*C,
-                                      APInt::getSignedMaxValue(BitWidth) + 1);
+  case SPF_UMIN: {
+    ConstantRange LCR = computeConstantRange(
+        LHS, /*ForSigned=*/false, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    ConstantRange RCR = computeConstantRange(
+        RHS, /*ForSigned=*/false, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    return LCR.umin(RCR);
+  }
+  case SPF_UMAX: {
+    ConstantRange LCR = computeConstantRange(
+        LHS, /*ForSigned=*/false, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    ConstantRange RCR = computeConstantRange(
+        RHS, /*ForSigned=*/false, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    return LCR.umax(RCR);
+  }
+  case SPF_SMIN: {
+    ConstantRange LCR = computeConstantRange(
+        LHS, /*ForSigned=*/true, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    ConstantRange RCR = computeConstantRange(
+        RHS, /*ForSigned=*/true, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    return LCR.smin(RCR);
+  }
+  case SPF_SMAX: {
+    ConstantRange LCR = computeConstantRange(
+        LHS, /*ForSigned=*/true, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    ConstantRange RCR = computeConstantRange(
+        RHS, /*ForSigned=*/true, IIQ.UseInstrInfo, AC, CtxI, DT, Depth + 1);
+    return LCR.smax(RCR);
+  }
   default:
     return ConstantRange::getFull(BitWidth);
   }
@@ -10368,7 +10384,8 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool ForSigned,
     ConstantRange CRFalse = computeConstantRange(
         SI->getFalseValue(), ForSigned, UseInstrInfo, AC, CtxI, DT, Depth + 1);
     CR = CRTrue.unionWith(CRFalse);
-    CR = CR.intersectWith(getRangeForSelectPattern(*SI, IIQ));
+    CR = CR.intersectWith(
+        getRangeForSelectPattern(*SI, IIQ, AC, CtxI, DT, Depth));
   } else if (isa<FPToUIInst>(V) || isa<FPToSIInst>(V)) {
     APInt Lower = APInt(BitWidth, 0);
     APInt Upper = APInt(BitWidth, 0);

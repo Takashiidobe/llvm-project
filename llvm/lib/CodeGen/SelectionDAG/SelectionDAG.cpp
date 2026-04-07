@@ -4674,6 +4674,34 @@ ConstantRange SelectionDAG::computeConstantRange(SDValue Op,
     const APInt &Multiplier = Op.getConstantOperandAPInt(0);
     return getVScaleRange(&F, BitWidth).multiply(Multiplier);
   }
+  case ISD::UMIN: {
+    ConstantRange LHS = computeConstantRange(Op.getOperand(0), DemandedElts,
+                                             /*ForSigned=*/false, Depth + 1);
+    ConstantRange RHS = computeConstantRange(Op.getOperand(1), DemandedElts,
+                                             /*ForSigned=*/false, Depth + 1);
+    return LHS.umin(RHS);
+  }
+  case ISD::UMAX: {
+    ConstantRange LHS = computeConstantRange(Op.getOperand(0), DemandedElts,
+                                             /*ForSigned=*/false, Depth + 1);
+    ConstantRange RHS = computeConstantRange(Op.getOperand(1), DemandedElts,
+                                             /*ForSigned=*/false, Depth + 1);
+    return LHS.umax(RHS);
+  }
+  case ISD::SMIN: {
+    ConstantRange LHS = computeConstantRange(Op.getOperand(0), DemandedElts,
+                                             /*ForSigned=*/true, Depth + 1);
+    ConstantRange RHS = computeConstantRange(Op.getOperand(1), DemandedElts,
+                                             /*ForSigned=*/true, Depth + 1);
+    return LHS.smin(RHS);
+  }
+  case ISD::SMAX: {
+    ConstantRange LHS = computeConstantRange(Op.getOperand(0), DemandedElts,
+                                             /*ForSigned=*/true, Depth + 1);
+    ConstantRange RHS = computeConstantRange(Op.getOperand(1), DemandedElts,
+                                             /*ForSigned=*/true, Depth + 1);
+    return LHS.smax(RHS);
+  }
   default:
     break;
   }

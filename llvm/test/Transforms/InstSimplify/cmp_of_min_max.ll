@@ -136,3 +136,43 @@ define i1 @test_smin3(i32 %n) {
   %c2 = icmp slt i32 %s, 9
   ret i1 %c2
 }
+
+define i1 @test_umax_arg_range(i8 %x, i8 range(i8 10, 20) %y) {
+; CHECK-LABEL: @test_umax_arg_range(
+; CHECK-NEXT:    ret i1 false
+;
+  %c1 = icmp ugt i8 %x, %y
+  %s = select i1 %c1, i8 %x, i8 %y
+  %c2 = icmp ult i8 %s, 10
+  ret i1 %c2
+}
+
+define i1 @test_umin_arg_range(i8 %x, i8 range(i8 10, 20) %y) {
+; CHECK-LABEL: @test_umin_arg_range(
+; CHECK-NEXT:    ret i1 false
+;
+  %c1 = icmp ult i8 %x, %y
+  %s = select i1 %c1, i8 %x, i8 %y
+  %c2 = icmp ugt i8 %s, 19
+  ret i1 %c2
+}
+
+define i1 @test_smax_arg_range(i8 %x, i8 range(i8 10, 20) %y) {
+; CHECK-LABEL: @test_smax_arg_range(
+; CHECK-NEXT:    ret i1 false
+;
+  %c1 = icmp sgt i8 %x, %y
+  %s = select i1 %c1, i8 %x, i8 %y
+  %c2 = icmp slt i8 %s, 10
+  ret i1 %c2
+}
+
+define i1 @test_smin_arg_range(i8 %x, i8 range(i8 10, 20) %y) {
+; CHECK-LABEL: @test_smin_arg_range(
+; CHECK-NEXT:    ret i1 false
+;
+  %c1 = icmp slt i8 %x, %y
+  %s = select i1 %c1, i8 %x, i8 %y
+  %c2 = icmp sgt i8 %s, 19
+  ret i1 %c2
+}
