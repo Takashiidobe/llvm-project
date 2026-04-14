@@ -17653,6 +17653,22 @@ SDValue DAGCombiner::visitFREEZE(SDNode *N) {
   if (DAG.isGuaranteedNotToBeUndefOrPoison(N0, /*PoisonOnly*/ false))
     return N0;
 
+  // freeze(undef) -> 0. Any consistent value is valid; we pick zero.
+  // Leaving freeze(undef) in place causes it to lower to COPY(IMPLICIT_DEF) in
+  // MachineIR. MachineCSE copy-propagation then replaces uses of the COPY
+  // result directly with the IMPLICIT_DEF source, and ProcessImplicitDefs
+  // marks every resulting use as an independent undef. The register allocator
+  // is then free to assign different physical registers to different uses of
+  // what should be one consistent frozen value, producing a miscompile.
+  if (N0.isUndef()) {
+    EVT VT = N->getValueType(0);
+    SDLoc DL(N);
+    if (VT.isInteger())
+      return DAG.getConstant(0, DL, VT);
+    if (VT.isFloatingPoint())
+      return DAG.getConstantFP(0.0, DL, VT);
+  }
+
   // If we have frozen and unfrozen users of N0, update so everything uses N.
   if (!N0.isUndef() && !N0.hasOneUse()) {
     SDValue FrozenN0(N, 0);

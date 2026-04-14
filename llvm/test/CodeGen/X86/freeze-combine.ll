@@ -31,11 +31,8 @@ define i32 @fold(i32 %x) {
 define i32 @freeze_poison(i32 %0) {
   ; CHECK-LABEL: name: freeze_poison
   ; CHECK: bb.0 (%ir-block.1):
-  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:gr32 = IMPLICIT_DEF
-  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:gr32 = COPY killed [[DEF]]
-  ; CHECK-NEXT:   [[SAR32ri:%[0-9]+]]:gr32 = SAR32ri [[COPY]], 3, implicit-def dead $eflags
-  ; CHECK-NEXT:   [[IMUL32rr:%[0-9]+]]:gr32 = IMUL32rr [[COPY]], killed [[SAR32ri]], implicit-def dead $eflags
-  ; CHECK-NEXT:   $eax = COPY [[IMUL32rr]]
+  ; CHECK-NEXT:   [[MOV32r0_:%[0-9]+]]:gr32 = MOV32r0 implicit-def dead $eflags
+  ; CHECK-NEXT:   $eax = COPY [[MOV32r0_]]
   ; CHECK-NEXT:   RET 0, $eax
   %2 = ashr i32 %0, 32
   %3 = freeze i32 %2
