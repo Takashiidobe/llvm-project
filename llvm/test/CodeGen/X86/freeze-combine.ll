@@ -22,3 +22,24 @@ define i32 @fold(i32 %x) {
   %z = freeze i32 %y
   ret i32 %z
 }
+
+; freeze(undef) must fold to a constant (zero) so that all uses of the frozen
+; value see the same consistent value. Without this fold, the undef propagates
+; through MachineCSE and ProcessImplicitDefs, giving each use an independent
+; IMPLICIT_DEF which the register allocator can assign to different physical
+; registers — miscompiling the function. (https://github.com/llvm/llvm-project/issues/58321)
+define i32 @freeze_poison(i32 %0) {
+  ; CHECK-LABEL: name: freeze_poison
+  ; CHECK: bb.0 (%ir-block.1):
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:gr32 = IMPLICIT_DEF
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:gr32 = COPY killed [[DEF]]
+  ; CHECK-NEXT:   [[SAR32ri:%[0-9]+]]:gr32 = SAR32ri [[COPY]], 3, implicit-def dead $eflags
+  ; CHECK-NEXT:   [[IMUL32rr:%[0-9]+]]:gr32 = IMUL32rr [[COPY]], killed [[SAR32ri]], implicit-def dead $eflags
+  ; CHECK-NEXT:   $eax = COPY [[IMUL32rr]]
+  ; CHECK-NEXT:   RET 0, $eax
+  %2 = ashr i32 %0, 32
+  %3 = freeze i32 %2
+  %4 = ashr i32 %3, 3
+  %5 = mul i32 %3, %4
+  ret i32 %5
+}
