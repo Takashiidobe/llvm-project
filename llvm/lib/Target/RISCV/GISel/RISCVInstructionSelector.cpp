@@ -1149,8 +1149,12 @@ bool RISCVInstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_PTRTOINT:
   case TargetOpcode::G_INTTOPTR:
   case TargetOpcode::G_TRUNC:
-  case TargetOpcode::G_FREEZE:
     return selectCopy(MI);
+  case TargetOpcode::G_FREEZE:
+    if (!selectCopy(MI))
+      return false;
+    MI.setDesc(TII.get(TargetOpcode::FREEZE));
+    return true;
   case TargetOpcode::G_CONSTANT: {
     Register DstReg = MI.getOperand(0).getReg();
     int64_t Imm = MI.getOperand(1).getCImm()->getSExtValue();

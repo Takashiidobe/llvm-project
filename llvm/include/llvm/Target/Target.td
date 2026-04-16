@@ -1495,6 +1495,18 @@ def ARITH_FENCE : StandardPseudoInstruction {
   let Constraints = "$src = $dst";
   let isMeta = true;
 }
+def FREEZE : StandardPseudoInstruction {
+  let OutOperandList = (outs unknown:$dst);
+  let InOperandList = (ins unknown:$src);
+  let AsmString = "";
+  let hasSideEffects = false;
+  // No tied constraint: src and dst are distinct operands so that every
+  // copy-propagation pass sees FREEZE as an opaque def, not a transparent
+  // copy.  The instruction is expanded to a COPY in ExpandPostRAPseudos,
+  // after register allocation and after the virtual-register copy-propagation
+  // passes that could otherwise split one frozen undef value into independent
+  // undef uses. Later physical-register copy propagation remains valid.
+}
 
 def STACKMAP : StandardPseudoInstruction {
   let OutOperandList = (outs);

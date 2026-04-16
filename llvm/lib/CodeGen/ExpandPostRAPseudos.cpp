@@ -155,6 +155,18 @@ bool ExpandPostRA::run(MachineFunction &MF) {
         TII->lowerCopy(&MI, TRI);
         MadeChange = true;
         break;
+      case TargetOpcode::FREEZE:
+        // Expand FREEZE to a COPY now that register allocation is done and the
+        // virtual-register copy-propagation passes that could split one frozen
+        // undef value into independent undef uses are behind us.  After RA,
+        // both operands are physical registers, so any subsequent
+        // copy-propagation is in the physical-register world where a single
+        // register always carries a single consistent value -- the freeze
+        // semantic is preserved.
+        MI.setDesc(TII->get(TargetOpcode::COPY));
+        TII->lowerCopy(&MI, TRI);
+        MadeChange = true;
+        break;
       case TargetOpcode::DBG_VALUE:
         continue;
       case TargetOpcode::INSERT_SUBREG:

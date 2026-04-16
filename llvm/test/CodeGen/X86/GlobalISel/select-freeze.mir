@@ -18,8 +18,8 @@ body:             |
 
     ; CHECK-LABEL: name:            select_freeze_scalar_s32
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
-    ; CHECK-NOT: G_FREEZE
-    ; CHECK-NEXT: $eax = COPY [[COPY]]
+    ; CHECK-NEXT: [[FREEZE:%[0-9]+]]:gr32 = FREEZE [[COPY]]
+    ; CHECK-NEXT: $eax = COPY [[FREEZE]]
     ; CHECK-NEXT: RET 0, implicit $eax
     %0:gpr(s32) = COPY $edi
     %1:gpr(s32) = G_FREEZE %0
@@ -44,8 +44,8 @@ body:             |
 
     ; CHECK-LABEL: name:            select_freeze_scalar_s64
     ; CHECK: [[COPY:%[0-9]+]]:gr64 = COPY $rdi
-    ; CHECK-NOT: G_FREEZE
-    ; CHECK-NEXT: $rax = COPY [[COPY]]
+    ; CHECK-NEXT: [[FREEZE:%[0-9]+]]:gr64 = FREEZE [[COPY]]
+    ; CHECK-NEXT: $rax = COPY [[FREEZE]]
     ; CHECK-NEXT: RET 0, implicit $rax
     %0:gpr(s64) = COPY $rdi
     %1:gpr(s64) = G_FREEZE %0
@@ -67,8 +67,8 @@ body:             |
 
     ; CHECK-LABEL: name:            select_freeze_vec128
     ; CHECK: [[COPY:%[0-9]+]]:vr128 = COPY $xmm0
-    ; CHECK-NOT: G_FREEZE
-    ; CHECK-NEXT: $xmm1 = COPY [[COPY]]
+    ; CHECK-NEXT: [[FREEZE:%[0-9]+]]:vr128 = FREEZE [[COPY]]
+    ; CHECK-NEXT: $xmm1 = COPY [[FREEZE]]
     ; CHECK-NEXT: RET 0, implicit $xmm1
     %0:vecr(<4 x s32>) = COPY $xmm0
     %1:vecr(<4 x s32>) = G_FREEZE %0

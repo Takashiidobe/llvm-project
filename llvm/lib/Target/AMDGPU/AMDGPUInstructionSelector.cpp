@@ -4392,8 +4392,12 @@ bool AMDGPUInstructionSelector::select(MachineInstr &I) {
   case TargetOpcode::G_INTTOPTR:
   case TargetOpcode::G_BITCAST:
   case TargetOpcode::G_PTRTOINT:
-  case TargetOpcode::G_FREEZE:
     return selectCOPY(I);
+  case TargetOpcode::G_FREEZE:
+    if (!selectCOPY(I))
+      return false;
+    I.setDesc(TII.get(TargetOpcode::FREEZE));
+    return true;
   case TargetOpcode::G_FNEG:
     if (selectImpl(I, *CoverageInfo))
       return true;

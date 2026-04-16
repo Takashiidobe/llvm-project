@@ -3425,7 +3425,15 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
   }
 
   case TargetOpcode::G_FREEZE:
-    return selectCopy(I, TII, MRI, TRI, RBI);
+    // Use selectCopy to handle register-class constraining, then mutate the
+    // opcode to FREEZE so that copy-propagation passes cannot treat it as a
+    // transparent COPY. FREEZE is expanded to COPY in ExpandPostRAPseudos,
+    // after the virtual-register copy-propagation passes where COPY
+    // transparency would be unsafe.
+    if (!selectCopy(I, TII, MRI, TRI, RBI))
+      return false;
+    I.setDesc(TII.get(TargetOpcode::FREEZE));
+    return true;
 
   case TargetOpcode::G_INTTOPTR:
     // The importer is currently unable to import pointer types since they

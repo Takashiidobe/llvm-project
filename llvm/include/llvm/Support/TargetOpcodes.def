@@ -135,6 +135,10 @@ HANDLE_TARGET_OPCODE(PSEUDO_PROBE)
 /// Arithmetic fence.
 HANDLE_TARGET_OPCODE(ARITH_FENCE)
 
+/// FREEZE - freezes a value, preventing the use of undef/poison from being
+/// propagated by optimizations. Lowers to the identity at code emission.
+HANDLE_TARGET_OPCODE(FREEZE)
+
 /// A Stackmap instruction captures the location of live variables at its
 /// position in the instruction stream. It is followed by a shadow of bytes
 /// that must lie within the function and not contain another stackmap.

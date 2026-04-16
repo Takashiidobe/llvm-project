@@ -2596,10 +2596,17 @@ void SelectionDAGISel::Select_RELOC_NONE(SDNode *N) {
 }
 
 void SelectionDAGISel::Select_FREEZE(SDNode *N) {
-  // TODO: We don't have FREEZE pseudo-instruction in MachineInstr-level now.
-  // If FREEZE instruction is added later, the code below must be changed as
-  // well.
-  CurDAG->SelectNodeTo(N, TargetOpcode::COPY, N->getValueType(0),
+  // Lower ISD::FREEZE to the FREEZE pseudo rather than a plain COPY.
+  // Using a distinct opcode prevents copy-propagation passes (MachineCSE,
+  // MachineCopyPropagation) from treating the result as a transparent alias of
+  // its source.  If the source is IMPLICIT_DEF, propagating through a COPY
+  // would allow each individual use to be independently marked undef, breaking
+  // the guarantee that freeze returns one consistent value.  FREEZE is
+  // expanded to a COPY in ExpandPostRAPseudos, after the virtual-register
+  // copy-propagation passes that could otherwise split one frozen undef value
+  // into independent undef uses. Later physical-register copy propagation
+  // remains valid.
+  CurDAG->SelectNodeTo(N, TargetOpcode::FREEZE, N->getValueType(0),
                        N->getOperand(0));
 }
 

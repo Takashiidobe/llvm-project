@@ -2225,6 +2225,10 @@ void AsmPrinter::emitFunctionBody() {
         if (isVerbose())
           OutStreamer->emitRawComment("ARITH_FENCE");
         break;
+      case TargetOpcode::FREEZE:
+        llvm_unreachable(
+            "FREEZE should have been expanded by ExpandPostRAPseudos");
+        break;
       case TargetOpcode::MEMBARRIER:
         OutStreamer->emitRawComment("MEMBARRIER");
         break;

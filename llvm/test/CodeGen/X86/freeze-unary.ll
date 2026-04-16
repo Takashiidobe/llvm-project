@@ -73,7 +73,8 @@ define <2 x i64> @freeze_zext_vec(<2 x i16> %a0) nounwind {
 define i32 @freeze_abs(i32 %a0) nounwind {
 ; X86-LABEL: freeze_abs:
 ; X86:       # %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    movl %ecx, %eax
 ; X86-NEXT:    negl %eax
 ; X86-NEXT:    cmovsl %ecx, %eax
@@ -113,7 +114,8 @@ define <4 x i32> @freeze_abs_vec(<4 x i32> %a0) nounwind {
 define i32 @freeze_abs_undef(i32 %a0) nounwind {
 ; X86-LABEL: freeze_abs_undef:
 ; X86:       # %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    movl %ecx, %eax
 ; X86-NEXT:    negl %eax
 ; X86-NEXT:    cmovsl %ecx, %eax
@@ -209,7 +211,8 @@ declare <4 x i32> @llvm.bitreverse.v4i32(<4 x i32>)
 define i32 @freeze_ctlz(i32 %a0) nounwind {
 ; X86-LABEL: freeze_ctlz:
 ; X86:       # %bb.0:
-; X86-NEXT:    bsrl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    bsrl %eax, %ecx
 ; X86-NEXT:    movl $63, %eax
 ; X86-NEXT:    cmovnel %ecx, %eax
 ; X86-NEXT:    xorl $31, %eax
@@ -241,7 +244,8 @@ define i32 @freeze_ctlz_undef(i32 %a0) nounwind {
 ;
 ; X64-LABEL: freeze_ctlz_undef:
 ; X64:       # %bb.0:
-; X64-NEXT:    bsrl %edi, %ecx
+; X64-NEXT:    bsrl %edi, %eax
+; X64-NEXT:    movl %eax, %ecx
 ; X64-NEXT:    xorl $31, %ecx
 ; X64-NEXT:    testl %edi, %edi
 ; X64-NEXT:    movl $32, %eax
@@ -280,7 +284,8 @@ define i32 @freeze_ctlz_undef_nonzero(i32 %a0) nounwind {
 define i32 @freeze_cttz(i32 %a0) nounwind {
 ; X86-LABEL: freeze_cttz:
 ; X86:       # %bb.0:
-; X86-NEXT:    bsfl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    bsfl %eax, %ecx
 ; X86-NEXT:    movl $32, %eax
 ; X86-NEXT:    cmovnel %ecx, %eax
 ; X86-NEXT:    retl
@@ -301,14 +306,16 @@ define i32 @freeze_cttz_undef(i32 %a0) nounwind {
 ; X86-LABEL: freeze_cttz_undef:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    bsfl %eax, %ecx
+; X86-NEXT:    bsfl %eax, %eax
+; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    movl $32, %eax
 ; X86-NEXT:    cmovnel %ecx, %eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: freeze_cttz_undef:
 ; X64:       # %bb.0:
-; X64-NEXT:    bsfl %edi, %ecx
+; X64-NEXT:    bsfl %edi, %eax
+; X64-NEXT:    movl %eax, %ecx
 ; X64-NEXT:    movl $32, %eax
 ; X64-NEXT:    cmovnel %ecx, %eax
 ; X64-NEXT:    retq
@@ -344,7 +351,8 @@ define i32 @freeze_cttz_undef_nonzero(i32 %a0) nounwind {
 define i8 @freeze_ctpop(i8 %a0) nounwind {
 ; X86-LABEL: freeze_ctpop:
 ; X86:       # %bb.0:
-; X86-NEXT:    cmpb $0, {{[0-9]+}}(%esp)
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    testb %al, %al
 ; X86-NEXT:    setnp %al
 ; X86-NEXT:    retl
 ;
@@ -405,7 +413,8 @@ declare <16 x i8> @llvm.ctpop.v16i8(<16 x i8>)
 define i8 @freeze_parity(i8 %a0) nounwind {
 ; X86-LABEL: freeze_parity:
 ; X86:       # %bb.0:
-; X86-NEXT:    cmpb $0, {{[0-9]+}}(%esp)
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    testb %al, %al
 ; X86-NEXT:    setnp %al
 ; X86-NEXT:    retl
 ;

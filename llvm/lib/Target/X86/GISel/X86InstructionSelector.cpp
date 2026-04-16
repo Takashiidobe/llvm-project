@@ -452,8 +452,13 @@ bool X86InstructionSelector::select(MachineInstr &I) {
   case TargetOpcode::G_TRUNC:
     return selectTruncOrPtrToInt(I, MRI, MF);
   case TargetOpcode::G_INTTOPTR:
+    return selectCopy(I, MRI);
   case TargetOpcode::G_FREEZE:
     return selectCopy(I, MRI);
+    // if (!selectCopy(I, MRI))
+    //   return false;
+    // I.setDesc(TII.get(TargetOpcode::FREEZE));
+    // return true;
   case TargetOpcode::G_ZEXT:
     return selectZext(I, MRI, MF);
   case TargetOpcode::G_ANYEXT:

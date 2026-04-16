@@ -170,6 +170,15 @@ INITIALIZE_PASS_END(MachineCSELegacy, DEBUG_TYPE,
 /// its users, and this propagation could increase the probability of finding
 /// common subexpressions. If the COPY has only one user, the COPY itself can
 /// be removed.
+///
+/// Note: FREEZE instructions are intentionally excluded here because they are
+/// not COPYs (isCopy() returns false). This prevents propagating the FREEZE
+/// source (which may be IMPLICIT_DEF/undef) through to independent uses, which
+/// would break freeze semantics by allowing different uses to observe different
+/// values. FREEZE is expanded to COPY only in ExpandPostRAPseudos, after the
+/// virtual-register copy-propagation passes that could otherwise split one
+/// frozen undef value into independent undef uses. Later physical-register copy
+/// propagation remains valid.
 bool MachineCSEImpl::PerformTrivialCopyPropagation(MachineInstr *MI,
                                                    MachineBasicBlock *MBB) {
   bool Changed = false;

@@ -1,0 +1,57 @@
+# RUN: llc -mtriple=x86_64-unknown-linux-gnu --run-pass=machine-cp %s -o - | FileCheck %s
+#
+# Verify that post-RA MachineCopyPropagation does NOT forward-propagate through
+# a FREEZE instruction.
+#
+# MachineCopyPropagation (post-RA) tracks definitions using CopyTracker: when
+# it sees a COPY $dst = $src it records that $dst carries the same value as
+# $src.  A subsequent COPY $out = $dst can then be rewritten to COPY $out = $src
+# directly ("forward copy propagation"), and the original COPY is removed if
+# $dst becomes dead.
+#
+# FREEZE is NOT a COPY, so MachineCopyPropagation must NOT record $ecx as a
+# transparent alias for $eax when it processes $ecx = FREEZE $eax.  If it did,
+# a subsequent $edx = COPY $ecx would be rewritten to $edx = COPY $eax,
+# bypassing the freeze barrier.
+#
+# Contrast: a plain COPY (freeze_copy_fwd_propagates) IS forward-propagated by
+# MachineCopyPropagation, collapsing the two-COPY chain into one.
+
+---
+# freeze_blocks_fwd_prop: FREEZE is opaque -- $edx = COPY $ecx must NOT be
+# rewritten to $edx = COPY $eax.
+name:            freeze_blocks_fwd_prop
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $eax
+
+    ; CHECK-LABEL: name: freeze_blocks_fwd_prop
+    ; CHECK: renamable $ecx = FREEZE renamable $eax
+    ; CHECK-NEXT: renamable $edx = COPY killed renamable $ecx
+    ; CHECK-NEXT: RET 0, implicit $edx
+    renamable $ecx = FREEZE renamable $eax
+    renamable $edx = COPY killed renamable $ecx
+    RET 0, implicit $edx
+...
+
+---
+# freeze_copy_fwd_propagates: plain COPY IS forward-propagated -- the
+# $ecx = COPY $eax feeds into $edx = COPY $ecx, collapsing to $edx = COPY $eax.
+name:            freeze_copy_fwd_propagates
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $eax
+
+    ; CHECK-LABEL: name: freeze_copy_fwd_propagates
+    ; CHECK: body: |
+    ; CHECK-NEXT:   bb.0:
+    ; CHECK-NEXT:     liveins: $eax
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT:     renamable $edx = COPY $eax
+    ; CHECK-NEXT:     RET 0, implicit $edx
+    renamable $ecx = COPY renamable $eax
+    renamable $edx = COPY killed renamable $ecx
+    RET 0, implicit $edx
+...
