@@ -146,10 +146,16 @@ mlir::Location CIRGenFunction::getLoc(SourceLocation srcLoc) {
   // CXXDefaultArgExpr), workaround that to still get something out.
   if (srcLoc.isValid()) {
     const SourceManager &sm = getContext().getSourceManager();
-    PresumedLoc pLoc = sm.getPresumedLoc(srcLoc);
-    StringRef filename = pLoc.getFilename();
-    return mlir::FileLineColLoc::get(builder.getStringAttr(filename),
-                                     pLoc.getLine(), pLoc.getColumn());
+    const auto getFileLoc = [&](SourceLocation loc) {
+      PresumedLoc pLoc = sm.getPresumedLoc(loc);
+      StringRef filename = pLoc.getFilename();
+      return mlir::FileLineColLoc::get(builder.getStringAttr(filename),
+                                       pLoc.getLine(), pLoc.getColumn());
+    };
+    if (srcLoc.isMacroID())
+      return mlir::CallSiteLoc::get(getFileLoc(sm.getSpellingLoc(srcLoc)),
+                                    getFileLoc(sm.getExpansionLoc(srcLoc)));
+    return getFileLoc(srcLoc);
   }
   // We expect to have a currSrcLoc set, so we assert here, but it isn't
   // critical for the correctness of compilation, so in non-assert builds

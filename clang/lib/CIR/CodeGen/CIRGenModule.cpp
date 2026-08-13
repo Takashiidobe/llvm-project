@@ -346,10 +346,16 @@ const TargetCIRGenInfo &CIRGenModule::getTargetCIRGenInfo() {
 mlir::Location CIRGenModule::getLoc(SourceLocation cLoc) {
   assert(cLoc.isValid() && "expected valid source location");
   const SourceManager &sm = astContext.getSourceManager();
-  PresumedLoc pLoc = sm.getPresumedLoc(cLoc);
-  StringRef filename = pLoc.getFilename();
-  return mlir::FileLineColLoc::get(builder.getStringAttr(filename),
-                                   pLoc.getLine(), pLoc.getColumn());
+  const auto getFileLoc = [&](SourceLocation loc) {
+    PresumedLoc pLoc = sm.getPresumedLoc(loc);
+    StringRef filename = pLoc.getFilename();
+    return mlir::FileLineColLoc::get(builder.getStringAttr(filename),
+                                     pLoc.getLine(), pLoc.getColumn());
+  };
+  if (cLoc.isMacroID())
+    return mlir::CallSiteLoc::get(getFileLoc(sm.getSpellingLoc(cLoc)),
+                                  getFileLoc(sm.getExpansionLoc(cLoc)));
+  return getFileLoc(cLoc);
 }
 
 mlir::Location CIRGenModule::getLoc(SourceRange cRange) {
