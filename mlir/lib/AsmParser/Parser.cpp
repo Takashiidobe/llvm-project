@@ -401,10 +401,9 @@ ParseResult Parser::parseFloatFromLiteral(std::optional<APFloat> &result,
                                           const llvm::fltSemantics &semantics) {
   // Check for a floating point value.
   if (tok.is(Token::floatliteral)) {
-    auto val = tok.getFloatingPointValue();
-    if (!val)
-      return emitError(tok.getLoc()) << "floating point value too large";
-
+    APFloat apVal(semantics, APFloat::uninitialized);
+    auto statusOrErr = apVal.convertFromString(tok.getSpelling(),
+                                               APFloat::rmNearestTiesToEven);
     // A type with no signed representation, such as f8E8M0FNU, has no encoding
     // for this value at all; the conversion below would keep the sign bit and
     // produce a value that asserts when it is printed.
@@ -412,10 +411,19 @@ ParseResult Parser::parseFloatFromLiteral(std::optional<APFloat> &result,
       return emitError(tok.getLoc())
              << "negative floating point literal for a type with no signed "
                 "representation";
+    auto val = tok.getFloatingPointValue();
 
-    result.emplace(isNegative ? -*val : *val);
-    bool unused;
-    result->convert(semantics, APFloat::rmNearestTiesToEven, &unused);
+    if (!statusOrErr) {
+      consumeError(statusOrErr.takeError());
+      return emitError(tok.getLoc()) << "floating point value too large";
+
+      result.emplace(isNegative ? -*val : *val);
+      bool unused;
+      result->convert(semantics, APFloat::rmNearestTiesToEven, &unused);
+    }
+    if (isNegative)
+      apVal.changeSign();
+    result.emplace(std::move(apVal));
     return success();
   }
 
