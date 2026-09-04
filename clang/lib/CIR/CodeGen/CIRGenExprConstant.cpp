@@ -1035,8 +1035,9 @@ ConstantLValueEmitter::VisitAddrLabelExpr(const AddrLabelExpr *e) {
   assert(emitter.cgf && "label address in a constant requires a function");
   CIRGenFunction &cgf = *const_cast<CIRGenFunction *>(emitter.cgf);
   auto func = cast<cir::FuncOp>(cgf.curFn);
-  return cir::BlockAddrInfoAttr::get(&cgf.getMLIRContext(), func.getSymName(),
-                                     e->getLabel()->getName());
+  return cir::BlockAddrInfoAttr::get(
+      &cgf.getMLIRContext(), func.getSymName(),
+      cgf.getOrCreateCIRLabelName(e->getLabel()));
 }
 
 ConstantLValue ConstantLValueEmitter::VisitCallExpr(const CallExpr *e) {
@@ -1565,9 +1566,11 @@ mlir::Attribute ConstantEmitter::tryEmitPrivate(const APValue &value,
     mlir::Type resultType = cgm.getTypes().convertType(destType);
     auto intResultType = mlir::cast<cir::IntType>(resultType);
     auto func = cast<cir::FuncOp>(cgf->curFn);
+    CIRGenFunction *mutableCgf = const_cast<CIRGenFunction *>(cgf);
     return cir::BlockAddrDiffAttr::get(
         builder.getContext(), intResultType, func.getSymName(),
-        lhsExpr->getLabel()->getName(), rhsExpr->getLabel()->getName());
+        mutableCgf->getOrCreateCIRLabelName(lhsExpr->getLabel()),
+        mutableCgf->getOrCreateCIRLabelName(rhsExpr->getLabel()));
   }
 
   case APValue::Matrix:

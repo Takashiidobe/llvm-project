@@ -728,7 +728,7 @@ mlir::LogicalResult CIRGenFunction::emitGotoStmt(const clang::GotoStmt &s) {
   assert(!cir::MissingFeatures::generateDebugInfo());
 
   cir::GotoOp::create(builder, getLoc(s.getSourceRange()),
-                      s.getLabel()->getName());
+                      getOrCreateCIRLabelName(s.getLabel()));
 
   // A goto marks the end of a block, create a new one for codegen after
   // emitGotoStmt can resume building in that block.
@@ -768,6 +768,21 @@ CIRGenFunction::emitContinueStmt(const clang::ContinueStmt &s) {
   return mlir::success();
 }
 
+llvm::StringRef
+CIRGenFunction::getOrCreateCIRLabelName(const clang::LabelDecl *label) {
+  auto it = cirLabelNames.find(label);
+  if (it != cirLabelNames.end())
+    return it->second;
+
+  llvm::StringRef spelling = label->getName();
+  unsigned &count = cirLabelNameCounts[spelling];
+  std::string cirName =
+      count == 0 ? spelling.str() : (spelling + "." + llvm::Twine(count)).str();
+  ++count;
+
+  return cirLabelNames.try_emplace(label, std::move(cirName)).first->second;
+}
+
 mlir::LogicalResult CIRGenFunction::emitLabel(const clang::LabelDecl &d) {
   // Create a new block to tag with a label and add a branch from
   // the current one to it. If the block is empty just call attach it
@@ -784,7 +799,8 @@ mlir::LogicalResult CIRGenFunction::emitLabel(const clang::LabelDecl &d) {
   }
 
   builder.setInsertionPointToEnd(labelBlock);
-  cir::LabelOp::create(builder, getLoc(d.getSourceRange()), d.getName());
+  cir::LabelOp::create(builder, getLoc(d.getSourceRange()),
+                       getOrCreateCIRLabelName(&d));
   //  FIXME: emit debug info for labels, incrementProfileCounter
   assert(!cir::MissingFeatures::incrementProfileCounter());
   assert(!cir::MissingFeatures::generateDebugInfo());

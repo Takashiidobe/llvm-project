@@ -371,6 +371,9 @@ public:
   // enter/leave scopes.
   llvm::DenseMap<const Expr *, mlir::Value> vlaSizeMap;
 
+  llvm::DenseMap<const clang::LabelDecl *, std::string> cirLabelNames;
+  llvm::StringMap<unsigned> cirLabelNameCounts;
+
 public:
   /// A non-RAII class containing all the information about a bound
   /// opaque value.  OpaqueValueMapping, below, is a RAII wrapper for
@@ -2178,6 +2181,8 @@ public:
 
   mlir::LogicalResult emitLabel(const clang::LabelDecl &d);
   mlir::LogicalResult emitLabelStmt(const clang::LabelStmt &s);
+
+  llvm::StringRef getOrCreateCIRLabelName(const clang::LabelDecl *label);
 
   void emitLambdaDelegatingInvokeBody(const CXXMethodDecl *md);
   void emitLambdaStaticInvokeBody(const CXXMethodDecl *md);
